@@ -53,7 +53,14 @@ contract FundRaisingToken is ERC20 {
         uint256 _healthThreshold,
         uint256 _minimumThreshold,
         uint256 _maximumThreshold
-    ) ERC20(name, symbol) nonZeroAddress(_lpManager) nonZeroAddress(_treasuryAddress) nonZeroAmount(_totalSupply) {
+    )
+        ERC20(name, symbol)
+        nonZeroAddress(_lpManager)
+        nonZeroAddress(_lpAddress)
+        nonZeroAddress(_treasuryAddress)
+        nonZeroAddress(_donationAddress)
+        nonZeroAmount(_totalSupply)
+    {
         lpManager = _lpManager;
         lpAddress = _lpAddress;
         treasuryAddress = _treasuryAddress;
