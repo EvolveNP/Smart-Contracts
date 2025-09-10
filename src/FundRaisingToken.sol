@@ -12,6 +12,11 @@ contract FundRaisingToken is ERC20 {
         _;
     }
 
+    modifier nonZeroAmount(uint256 _amount) {
+        require(_amount > 0, "Zero amount");
+        _;
+    }
+
     /**
      *
      * @param name Name of the fundraising token
@@ -23,7 +28,7 @@ contract FundRaisingToken is ERC20 {
         address _lpManager,
         address _treasuryAddress,
         uint256 _totalSupply
-    ) ERC20(name, symbol) nonZeroAddress(_lpManager) nonZeroAddress(_treasuryAddress) {
+    ) ERC20(name, symbol) nonZeroAddress(_lpManager) nonZeroAddress(_treasuryAddress) nonZeroAmount(_totalSupply) {
         lpManager = _lpManager;
         treasuryAddress = _treasuryAddress;
 
