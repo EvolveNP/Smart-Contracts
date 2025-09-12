@@ -12,11 +12,11 @@ contract FundRaisingToken is ERC20, Ownable {
     address public immutable treasuryAddress; //The address of the treasury wallet
     address public lpAddress; // The address of the liquidity pool
     address public immutable donationAddress; // The address of the donation wallet
-    uint256 immutable taxFee; // The tax fee on each transaction
-    uint256 public immutable healthThreshold; // The health threshold for the liquidity pool
-    uint256 public immutable minimumThreshold; // The minimum threshold for the liquidity pool
-    uint256 public immutable maximumThreshold; // The maximum threshold for the liquidity pool
-    uint256 configurableTaxFee; // A configurable tax fee on each transaction
+    uint256 public constant taxFee = 2e16; // The tax fee on each transaction 2% = 2e16 (in basis points, e.g. 1e16 = 1%)
+    uint256 public constant healthThreshold = 1e18; // The health threshold for the liquidity pool
+    uint256 public constant minimumThreshold = 15e16; // The minimum threshold for the liquidity pool 15% = 15e16
+    uint256 public constant maximumThreshold = 30e16; // The maximum threshold for the liquidity pool 30% = 30e16
+    uint256 public constant configurableTaxFee = 1e16; // A configurable tax fee on each transaction
 
     /**
      * Events
@@ -49,10 +49,6 @@ contract FundRaisingToken is ERC20, Ownable {
      * @param _treasuryAddress Address of the treasury wallet
      * @param _donationAddress Address of the donation wallet
      * @param _totalSupply Total supply of the fundraising token
-     * @param _taxFee Tax fee on each transaction (in basis points, e.g. 1e16 = 1%)
-     * @param _healthThreshold Health threshold for the liquidity pool
-     * @param _minimumThreshold Minimum threshold for the liquidity pool
-     * @param _maximumThreshold Maximum threshold for the liquidity pool
      */
     constructor(
         string memory name,
@@ -60,12 +56,7 @@ contract FundRaisingToken is ERC20, Ownable {
         address _lpManager,
         address _treasuryAddress,
         address _donationAddress,
-        uint256 _totalSupply,
-        uint256 _taxFee,
-        uint256 _healthThreshold,
-        uint256 _minimumThreshold,
-        uint256 _maximumThreshold,
-        uint256 _configurableTaxFee
+        uint256 _totalSupply
     )
         ERC20(name, symbol)
         Ownable(msg.sender)
@@ -74,16 +65,9 @@ contract FundRaisingToken is ERC20, Ownable {
         nonZeroAddress(_donationAddress)
         nonZeroAmount(_totalSupply)
     {
-        require(_configurableTaxFee <= _taxFee, "Incorrect configurable tax fee");
-
         lpManager = _lpManager;
         treasuryAddress = _treasuryAddress;
         donationAddress = _donationAddress;
-        taxFee = _taxFee;
-        healthThreshold = _healthThreshold;
-        minimumThreshold = _minimumThreshold;
-        maximumThreshold = _maximumThreshold;
-        configurableTaxFee = _configurableTaxFee;
 
         // mint 75% to LP manager 100% = 1e18
         _mint(lpManager, (_totalSupply * 75e16) / 1e18);

@@ -8,7 +8,53 @@ import {FundRaisingToken} from "../src/FundRaisingToken.sol";
 contract FundRaisingTokenTest is Test {
     FundRaisingToken public fundRaisingToken;
 
+    address public constant lpManager = address(0x1);
+    address public constant treasuryAddress = donationAddress;
+    address public constant donationAddress = address(0x3);
+    uint256 public constant totalSupply = 1e27; // 1 billion tokens with 18 decimals
+
     function setUp() public {
-        // fundRaisingToken = new FundRaisingToken();
+        fundRaisingToken =
+            new FundRaisingToken("FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, totalSupply);
+    }
+
+    function testConstructorRevertsOnZeroLPManagerAddress() public {
+        vm.expectRevert(bytes("Zero address"));
+        new FundRaisingToken("FundRaisingToken", "FRT", address(0), treasuryAddress, donationAddress, 1e24);
+    }
+
+    function testConstructorRevertsOnZeroTreasuryAddress() public {
+        vm.expectRevert(bytes("Zero address"));
+        new FundRaisingToken("FundRaisingToken", "FRT", lpManager, address(0), donationAddress, 1e24);
+    }
+
+    function testConstructorRevertsOnZeroDonationAddress() public {
+        vm.expectRevert(bytes("Zero address"));
+        new FundRaisingToken("FundRaisingToken", "FRT", lpManager, treasuryAddress, address(0), 1e24);
+    }
+
+    function testConstructorRevertsOnZeroTotalSupplyValue() public {
+        vm.expectRevert(bytes("Zero amount"));
+        new FundRaisingToken("FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, 0);
+    }
+
+    function testConstructorMintsCorrectAmountToLPManager() public {
+        fundRaisingToken =
+            new FundRaisingToken("FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, 1e24);
+        assertEq(fundRaisingToken.balanceOf(lpManager), 75e22);
+    }
+
+    function testConstructorMintsCorrectAmountToTreasury() public {
+        fundRaisingToken =
+            new FundRaisingToken("FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, 2e24);
+        assertEq(fundRaisingToken.balanceOf(lpManager), 150e22);
+    }
+
+    function testConstructorSetAllAddressesCorrectly() public {
+        fundRaisingToken =
+            new FundRaisingToken("FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, 1e24);
+        assertEq(fundRaisingToken.lpManager(), lpManager);
+        assertEq(fundRaisingToken.treasuryAddress(), treasuryAddress);
+        assertEq(fundRaisingToken.donationAddress(), donationAddress);
     }
 }
