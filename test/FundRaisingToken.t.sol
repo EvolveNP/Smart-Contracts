@@ -4,6 +4,7 @@ pragma solidity 0.8.20;
 import {Test, console} from "forge-std/Test.sol";
 
 import {FundRaisingToken} from "../src/FundRaisingToken.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract FundRaisingTokenTest is Test {
     FundRaisingToken public fundRaisingToken;
@@ -90,6 +91,12 @@ contract FundRaisingTokenTest is Test {
 
         assertEq(fundRaisingToken.totalSupply(), initialTotalSupply - burnAmount);
         assertEq(fundRaisingToken.balanceOf(treasuryAddress), initialTreasuryBalance - burnAmount);
+    }
+
+    function testSetLPAddressRevertsIfNotOwner() public {
+        vm.prank(address(0x4));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, 0x4));
+        fundRaisingToken.setLPAddress(address(0x5));
     }
 
     function testSetLPAddressRevertsOnZeroAddress() public {
