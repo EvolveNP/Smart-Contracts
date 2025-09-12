@@ -130,7 +130,7 @@ contract FundRaisingToken is ERC20, Ownable {
             return;
         }
 
-        // ✅ Only tax if treasury < max threshold
+        // Only tax if treasury < max threshold
         if (getTreasuryBalanceInPerecent() < maximumThreshold) {
             uint256 lpHealth = checkLPHealth();
 
@@ -151,7 +151,7 @@ contract FundRaisingToken is ERC20, Ownable {
             }
         }
 
-        // ✅ Net transfer to user
+        // Net transfer to user
         unchecked {
             super._update(from, to, amount - taxAmount);
         }
