@@ -2,17 +2,30 @@
 pragma solidity 0.8.20;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract FundRaisingToken is ERC20 {
+contract FundRaisingToken is ERC20, Ownable {
+    /**
+     * State Variables
+     */
     address public immutable lpManager; // The address of the liquidity pool manager
     address public immutable treasuryAddress; //The address of the treasury wallet
-    address public immutable lpAddress; // The address of the liquidity pool
+    address public lpAddress; // The address of the liquidity pool
     address public immutable donationAddress; // The address of the donation wallet
     uint256 immutable taxFee; // The tax fee on each transaction
     uint256 public immutable healthThreshold; // The health threshold for the liquidity pool
     uint256 public immutable minimumThreshold; // The minimum threshold for the liquidity pool
     uint256 public immutable maximumThreshold; // The maximum threshold for the liquidity pool
+    uint256 configurableTaxFee; // A configurable tax fee on each transaction
 
+    /**
+     * Events
+     */
+    event LPAddressUpdated(address lpAddress);
+
+    /**
+     * Modifiers
+     */
     modifier nonZeroAddress(address _address) {
         require(_address != address(0), "Zero address");
         _;
@@ -45,30 +58,32 @@ contract FundRaisingToken is ERC20 {
         string memory name,
         string memory symbol,
         address _lpManager,
-        address _lpAddress,
         address _treasuryAddress,
         address _donationAddress,
         uint256 _totalSupply,
         uint256 _taxFee,
         uint256 _healthThreshold,
         uint256 _minimumThreshold,
-        uint256 _maximumThreshold
+        uint256 _maximumThreshold,
+        uint256 _configurableTaxFee
     )
         ERC20(name, symbol)
+        Ownable(msg.sender)
         nonZeroAddress(_lpManager)
-        nonZeroAddress(_lpAddress)
         nonZeroAddress(_treasuryAddress)
         nonZeroAddress(_donationAddress)
         nonZeroAmount(_totalSupply)
     {
+        require(_configurableTaxFee <= _taxFee, "Incorrect configurable tax fee");
+
         lpManager = _lpManager;
-        lpAddress = _lpAddress;
         treasuryAddress = _treasuryAddress;
         donationAddress = _donationAddress;
         taxFee = _taxFee;
         healthThreshold = _healthThreshold;
         minimumThreshold = _minimumThreshold;
         maximumThreshold = _maximumThreshold;
+        configurableTaxFee = _configurableTaxFee;
 
         // mint 75% to LP manager 100% = 1e18
         _mint(lpManager, (_totalSupply * 75e16) / 1e18);
@@ -85,6 +100,15 @@ contract FundRaisingToken is ERC20 {
     }
 
     /**
+     * @notice Sets the liquidity pool address. Only callable by the owner.
+     * @param _lpAddress Address of the liquidity pool
+     */
+    function setLPAddress(address _lpAddress) external nonZeroAddress(_lpAddress) onlyOwner {
+        lpAddress = _lpAddress;
+        emit LPAddressUpdated(_lpAddress);
+    }
+
+    /**
      *
      * See {ERC20-_update}
      */
@@ -94,12 +118,23 @@ contract FundRaisingToken is ERC20 {
         if (
             (from != address(0) && to != address(0)) && (from != lpManager && to != lpManager)
                 && (from != donationAddress && to != donationAddress) && (from != treasuryAddress && to != treasuryAddress)
+                && (getTreasuryBalanceInPerecent() < maximumThreshold)
         ) {
             uint256 lpHealth = checkLPHealth();
-            require(lpHealth >= healthThreshold, "LP health below threshold");
-            taxAmount = (value * taxFee) / 1e18;
+            // If the LP is under the health threshold, a configurable % of the tax is routed to the LP as an auto‑liquidity top‑up; the remainder (if any) goes to the Treasury.
+            if (lpHealth < healthThreshold) {
+                taxAmount = (value * configurableTaxFee) / 1e18;
+                super._update(from, lpAddress, taxAmount);
 
-            super._update(from, treasuryAddress, taxAmount);
+                if (taxFee > configurableTaxFee) {
+                    taxAmount = (value * (taxFee - configurableTaxFee)) / 1e18;
+                    super._update(from, treasuryAddress, taxAmount);
+                }
+            } else {
+                // If the LP is above the health threshold, 100% of the tax goes to the Treasury.
+                taxAmount = (value * taxFee) / 1e18;
+                super._update(from, treasuryAddress, taxAmount);
+            }
         }
 
         super._update(from, to, value - taxAmount);
@@ -110,5 +145,16 @@ contract FundRaisingToken is ERC20 {
      */
     function checkLPHealth() internal pure returns (uint256) {
         return 1;
+    }
+
+    /**
+     * @notice Returns the treasury balance as a percentage of the total supply
+     * @return Percentage of the total supply held by the treasury (in 1e18 format, e.g. 1e16 = 1%)
+     */
+    function getTreasuryBalanceInPerecent() internal view returns (uint256) {
+        uint256 treasuryBalance = balanceOf(treasuryAddress);
+        uint256 totalSupply = totalSupply();
+
+        return (treasuryBalance * 1e18) / totalSupply;
     }
 }
