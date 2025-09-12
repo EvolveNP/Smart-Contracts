@@ -112,32 +112,49 @@ contract FundRaisingToken is ERC20, Ownable {
      *
      * See {ERC20-_update}
      */
-    function _update(address from, address to, uint256 value) internal virtual override {
-        // only calculate tax on transfer
+    function _update(address from, address to, uint256 amount) internal virtual override {
         uint256 taxAmount = 0;
-        if (
-            (from != address(0) && to != address(0)) && (from != lpManager && to != lpManager)
-                && (from != donationAddress && to != donationAddress) && (from != treasuryAddress && to != treasuryAddress)
-                && (getTreasuryBalanceInPerecent() < maximumThreshold)
-        ) {
-            uint256 lpHealth = checkLPHealth();
-            // If the LP is under the health threshold, a configurable % of the tax is routed to the LP as an auto‑liquidity top‑up; the remainder (if any) goes to the Treasury.
-            if (lpHealth < healthThreshold) {
-                taxAmount = (value * configurableTaxFee) / 1e18;
-                super._update(from, lpAddress, taxAmount);
 
-                if (taxFee > configurableTaxFee) {
-                    taxAmount = (value * (taxFee - configurableTaxFee)) / 1e18;
-                    super._update(from, treasuryAddress, taxAmount);
-                }
+        // Exempt mint/burn
+        if (from == address(0) || to == address(0)) {
+            super._update(from, to, amount);
+            return;
+        }
+
+        // Exempt system addresses
+        if (
+            from == lpManager || to == lpManager || from == donationAddress || to == donationAddress
+                || from == treasuryAddress || to == treasuryAddress
+        ) {
+            super._update(from, to, amount);
+            return;
+        }
+
+        // ✅ Only tax if treasury < max threshold
+        if (getTreasuryBalanceInPerecent() < maximumThreshold) {
+            uint256 lpHealth = checkLPHealth();
+
+            if (lpHealth < healthThreshold) {
+                // Route part to LP
+                uint256 lpTax = (amount * configurableTaxFee) / 1e18;
+                if (lpTax > 0) super._update(from, lpAddress, lpTax);
+
+                // Remainder to Treasury
+                uint256 treasuryTax = (amount * taxFee) / 1e18 - lpTax;
+                if (treasuryTax > 0) super._update(from, treasuryAddress, treasuryTax);
+
+                taxAmount = lpTax + treasuryTax;
             } else {
-                // If the LP is above the health threshold, 100% of the tax goes to the Treasury.
-                taxAmount = (value * taxFee) / 1e18;
-                super._update(from, treasuryAddress, taxAmount);
+                // All tax → Treasury
+                taxAmount = (amount * taxFee) / 1e18;
+                if (taxAmount > 0) super._update(from, treasuryAddress, taxAmount);
             }
         }
 
-        super._update(from, to, value - taxAmount);
+        // ✅ Net transfer to user
+        unchecked {
+            super._update(from, to, amount - taxAmount);
+        }
     }
 
     /**
