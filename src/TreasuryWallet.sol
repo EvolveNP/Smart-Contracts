@@ -7,14 +7,18 @@ contract TreasuryWallet {
     /**
      * State Variables
      */
-    address public donationAddress; // The address of the donation wallet
+    address public immutable donationAddress; // The address of the donation wallet
     IERC20 public fundraisingToken; // The fundraising token
-    address public factoryAddress; // The address of the factory contract
+    address public immutable factoryAddress; // The address of the factory contract
+    uint256 public constant minimumThreshold = 15e16; // The minimum threshold for transferring funds
+
+    //  address internal
 
     /**
      * Events
      */
     event FundraisingTokenSet(address fundraisingToken);
+    event TransferFunds(uint256 amountTransferredAndBurned);
 
     /**
      * Modifiers
@@ -33,7 +37,7 @@ contract TreasuryWallet {
         nonZeroAddress(_donationAddress)
         nonZeroAddress(_factoryAddress)
     {
-        _donationAddress = _donationAddress;
+        donationAddress = _donationAddress;
         factoryAddress = _factoryAddress;
     }
 
@@ -49,5 +53,25 @@ contract TreasuryWallet {
     /**
      * TODO: Responsible for transferring funds to the donation wallet based on a predefined schedule
      */
-    function transferFunds() external {}
+    function transferFunds() external {
+        uint256 amountToTransferAndBurn = 0;
+        if (isTransferAllowed()) {
+            amountToTransferAndBurn = fundraisingToken.totalSupply() * 2e16 / 1e18; // 2% of total supply
+            fundraisingToken.transfer(donationAddress, amountToTransferAndBurn);
+            fundraisingToken.transfer(address(0), amountToTransferAndBurn);
+        }
+
+        emit TransferFunds(amountToTransferAndBurn);
+    }
+
+    function isTransferAllowed() internal view returns (bool) {
+        uint256 treasuryBalance = fundraisingToken.balanceOf(address(this));
+        uint256 totalSupply = fundraisingToken.totalSupply();
+        uint256 currentThreshold = (treasuryBalance * 1e18 / totalSupply);
+        if (currentThreshold >= minimumThreshold) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 }
