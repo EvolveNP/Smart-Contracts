@@ -76,14 +76,6 @@ contract FundRaisingToken is ERC20, Ownable {
     }
 
     /**
-     * @notice Burns a specific amount of tokens from the treasury wallet.
-     * @param amount Amount of tokens to burn
-     */
-    function burn(uint256 amount) external nonZeroAmount(amount) onlyTreasury(msg.sender) {
-        _burn(msg.sender, amount);
-    }
-
-    /**
      * @notice Sets the liquidity pool address. Only callable by the owner.
      * @param _lpAddress Address of the liquidity pool
      */

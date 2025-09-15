@@ -10,6 +10,7 @@ contract TreasuryWallet {
     address public immutable donationAddress; // The address of the donation wallet
     IERC20 public fundraisingToken; // The fundraising token
     address public immutable factoryAddress; // The address of the factory contract
+    address public registryAddress; // The address of the chainlink registry contract
     uint256 public constant minimumThreshold = 15e16; // The minimum threshold for transferring funds
 
     //  address internal
@@ -18,7 +19,7 @@ contract TreasuryWallet {
      * Events
      */
     event FundraisingTokenSet(address fundraisingToken);
-    event TransferFunds(uint256 amountTransferredAndBurned);
+    event FundTransferredToDonationWallet(uint256 amountTransferredAndBurned);
 
     /**
      * Modifiers
@@ -33,12 +34,18 @@ contract TreasuryWallet {
         _;
     }
 
-    constructor(address _donationAddress, address _factoryAddress)
+    modifier onlyRegistry() {
+        require(msg.sender == registryAddress, "Only registry");
+        _;
+    }
+
+    constructor(address _donationAddress, address _factoryAddress, address _registryAddress)
         nonZeroAddress(_donationAddress)
         nonZeroAddress(_factoryAddress)
     {
         donationAddress = _donationAddress;
         factoryAddress = _factoryAddress;
+        registryAddress = _registryAddress;
     }
 
     /**
@@ -51,9 +58,11 @@ contract TreasuryWallet {
     }
 
     /**
-     * TODO: Responsible for transferring funds to the donation wallet based on a predefined schedule
+     * @notice Transfer funds to donation wallet and burn an equal amount
+     * @dev Can only be called by the registry contract and
+     *      only if the treasury wallet balance is above the minimum threshold
      */
-    function transferFunds() external {
+    function transferFunds() external onlyRegistry {
         uint256 amountToTransferAndBurn = 0;
         if (isTransferAllowed()) {
             amountToTransferAndBurn = fundraisingToken.totalSupply() * 2e16 / 1e18; // 2% of total supply
@@ -61,7 +70,7 @@ contract TreasuryWallet {
             fundraisingToken.transfer(address(0), amountToTransferAndBurn);
         }
 
-        emit TransferFunds(amountToTransferAndBurn);
+        emit FundTransferredToDonationWallet(amountToTransferAndBurn);
     }
 
     function isTransferAllowed() internal view returns (bool) {

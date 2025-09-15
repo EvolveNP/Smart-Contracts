@@ -69,42 +69,6 @@ contract FundRaisingTokenTest is Test {
         assertEq(fundRaisingToken.owner(), address(this));
     }
 
-    function testBurnRevertsOnZeroAmount() public {
-        vm.prank(treasuryAddress);
-        vm.expectRevert(bytes("Zero amount"));
-        fundRaisingToken.burn(0);
-    }
-
-    function testBurnRevertsIfNotCalledByTreasury() public {
-        vm.prank(address(0x4));
-        vm.expectRevert(bytes("Only treasury"));
-        fundRaisingToken.burn(1e18);
-    }
-
-    function testBurnReducesTotalSupplyAndTreasuryBalance() public {
-        uint256 initialTotalSupply = fundRaisingToken.totalSupply();
-        uint256 initialTreasuryBalance = fundRaisingToken.balanceOf(treasuryAddress);
-        uint256 burnAmount = 1e18;
-
-        vm.prank(treasuryAddress);
-        fundRaisingToken.burn(burnAmount);
-
-        assertEq(fundRaisingToken.totalSupply(), initialTotalSupply - burnAmount);
-        assertEq(fundRaisingToken.balanceOf(treasuryAddress), initialTreasuryBalance - burnAmount);
-    }
-
-    function testBurnCannotIncurTax() public {
-        uint256 initialTotalSupply = fundRaisingToken.totalSupply();
-        uint256 initialTreasuryBalance = fundRaisingToken.balanceOf(treasuryAddress);
-        uint256 burnAmount = 1e18;
-
-        vm.prank(treasuryAddress);
-        fundRaisingToken.burn(burnAmount);
-
-        assertEq(fundRaisingToken.totalSupply(), initialTotalSupply - burnAmount);
-        assertEq(fundRaisingToken.balanceOf(treasuryAddress), initialTreasuryBalance - burnAmount);
-    }
-
     function testSetLPAddressRevertsIfNotOwner() public {
         vm.prank(address(0x4));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, 0x4));
