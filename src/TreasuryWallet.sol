@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.20;
+pragma solidity 0.8.22;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IFundraisingToken} from "./interfaces/IFundraisingToken.sol";
 
 contract TreasuryWallet {
     /**
      * State Variables
      */
     address public immutable donationAddress; // The address of the donation wallet
-    IERC20 public fundraisingToken; // The fundraising token
+    IFundraisingToken public fundraisingToken; // The fundraising token
     address public immutable factoryAddress; // The address of the factory contract
     address public registryAddress; // The address of the chainlink registry contract
     uint256 public constant minimumThreshold = 15e16; // The minimum threshold for transferring funds
@@ -53,7 +53,7 @@ contract TreasuryWallet {
      * @param _fundraisingToken The address of the fundraising token
      */
     function setFundraisingToken(address _fundraisingToken) external onlyFactory {
-        fundraisingToken = IERC20(_fundraisingToken);
+        fundraisingToken = IFundraisingToken(_fundraisingToken);
         emit FundraisingTokenSet(_fundraisingToken);
     }
 
@@ -67,7 +67,7 @@ contract TreasuryWallet {
         if (isTransferAllowed()) {
             amountToTransferAndBurn = fundraisingToken.totalSupply() * 2e16 / 1e18; // 2% of total supply
             fundraisingToken.transfer(donationAddress, amountToTransferAndBurn);
-            fundraisingToken.transfer(address(0), amountToTransferAndBurn);
+            fundraisingToken.burn(amountToTransferAndBurn);
         }
 
         emit FundTransferredToDonationWallet(amountToTransferAndBurn);

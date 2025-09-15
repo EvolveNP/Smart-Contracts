@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.20;
+pragma solidity 0.8.22;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -73,6 +73,14 @@ contract FundRaisingToken is ERC20, Ownable {
         _mint(lpManager, (_totalSupply * 75e16) / 1e18);
         // mint 25% to treasury wallet
         _mint(treasuryAddress, (_totalSupply * 25e16) / 1e18);
+    }
+
+    /**
+     * @notice Burns a specific amount of tokens from the treasury wallet.
+     * @param amount Amount of tokens to burn
+     */
+    function burn(uint256 amount) external nonZeroAmount(amount) onlyTreasury(msg.sender) {
+        _burn(msg.sender, amount);
     }
 
     /**
