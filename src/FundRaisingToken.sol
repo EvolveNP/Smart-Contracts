@@ -142,7 +142,7 @@ contract FundRaisingToken is ERC20, Ownable {
     }
 
     /**
-     * TODO
+     * TODO Remove this check
      */
     function checkLPHealth() internal pure returns (uint256) {
         return 1;
