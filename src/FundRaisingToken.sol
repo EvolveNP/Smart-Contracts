@@ -116,36 +116,15 @@ contract FundRaisingToken is ERC20, Ownable {
 
         // Only tax if treasury < max threshold
         if (getTreasuryBalanceInPerecent() < maximumThreshold) {
-            uint256 lpHealth = checkLPHealth();
-
-            if (lpHealth < healthThreshold) {
-                // Route part to LP
-                uint256 lpTax = (amount * configurableTaxFee) / 1e18;
-                if (lpTax > 0) super._update(from, lpAddress, lpTax);
-
-                // Remainder to Treasury
-                uint256 treasuryTax = (amount * taxFee) / 1e18 - lpTax;
-                if (treasuryTax > 0) super._update(from, treasuryAddress, treasuryTax);
-
-                taxAmount = lpTax + treasuryTax;
-            } else {
-                // All tax → Treasury
-                taxAmount = (amount * taxFee) / 1e18;
-                if (taxAmount > 0) super._update(from, treasuryAddress, taxAmount);
-            }
+            // All tax → Treasury
+            taxAmount = (amount * taxFee) / 1e18;
+            if (taxAmount > 0) super._update(from, treasuryAddress, taxAmount);
         }
 
         // Net transfer to user
         unchecked {
             super._update(from, to, amount - taxAmount);
         }
-    }
-
-    /**
-     * TODO Remove this check
-     */
-    function checkLPHealth() internal pure returns (uint256) {
-        return 1;
     }
 
     /**
