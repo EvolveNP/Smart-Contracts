@@ -22,7 +22,7 @@ contract FundRaisingToken is ERC20, Ownable {
     uint256 internal constant perWalletCoolDownPeriod = 1 minutes;
     uint256 internal constant maxBuySize = 333e13; // 0.333% of total supply
     uint256 internal constant blocksToHold = 10;
-    uint256 internal launchBlock;// The block number when the token was launched
+    uint256 internal launchBlock; // The block number when the token was launched
 
     mapping(address => uint256) internal lastBuyTimestamp; // The last buy timestamp for each address
 
