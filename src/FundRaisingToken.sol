@@ -18,6 +18,14 @@ contract FundRaisingToken is ERC20, Ownable {
     uint256 public constant maximumThreshold = 30e16; // The maximum threshold for the liquidity pool 30% = 30e16
     uint256 public constant configurableTaxFee = 1e16; // A configurable tax fee on each transaction
 
+    uint256 internal luanchTimestamp; // The timestamp when the token was launched
+    uint256 internal constant perWalletCoolDownPeriod = 1 minutes;
+    uint256 internal constant maxBuySize = 333e13; // 0.333% of total supply
+    uint256 internal constant blocksToHold = 10;
+    uint256 internal launchBlock;// The block number when the token was launched
+
+    mapping(address => uint256) internal lastBuyTimestamp; // The last buy timestamp for each address
+
     /**
      * Events
      */
@@ -137,4 +145,6 @@ contract FundRaisingToken is ERC20, Ownable {
 
         return (treasuryBalance * 1e18) / totalSupply;
     }
+
+    function isTransferBlocked(address _account) internal returns (bool) {}
 }
