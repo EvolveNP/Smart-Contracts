@@ -18,6 +18,14 @@ contract FundRaisingToken is ERC20, Ownable {
     uint256 public constant maximumThreshold = 30e16; // The maximum threshold for the liquidity pool 30% = 30e16
     uint256 public constant configurableTaxFee = 1e16; // A configurable tax fee on each transaction
 
+    uint256 internal luanchTimestamp; // The timestamp when the token was launched
+    uint256 internal constant perWalletCoolDownPeriod = 1 minutes;
+    uint256 internal constant maxBuySize = 333e13; // 0.333% of total supply
+    uint256 internal constant blocksToHold = 10;
+    uint256 internal launchBlock; // The block number when the token was launched
+
+    mapping(address => uint256) internal lastBuyTimestamp; // The last buy timestamp for each address
+
     /**
      * Events
      */
@@ -104,7 +112,11 @@ contract FundRaisingToken is ERC20, Ownable {
             super._update(from, to, amount);
             return;
         }
-
+        // Block transfers if transfer is blocked
+        if (isTransferBlocked(to, amount) || isTransferBlocked(from, amount)) {
+            revert("Transfer blocked");
+        }
+        require(!isTransferBlocked(from, amount), "transfer not allowed");
         // Exempt system addresses
         if (
             from == lpManager || to == lpManager || from == donationAddress || to == donationAddress
@@ -116,36 +128,15 @@ contract FundRaisingToken is ERC20, Ownable {
 
         // Only tax if treasury < max threshold
         if (getTreasuryBalanceInPerecent() < maximumThreshold) {
-            uint256 lpHealth = checkLPHealth();
-
-            if (lpHealth < healthThreshold) {
-                // Route part to LP
-                uint256 lpTax = (amount * configurableTaxFee) / 1e18;
-                if (lpTax > 0) super._update(from, lpAddress, lpTax);
-
-                // Remainder to Treasury
-                uint256 treasuryTax = (amount * taxFee) / 1e18 - lpTax;
-                if (treasuryTax > 0) super._update(from, treasuryAddress, treasuryTax);
-
-                taxAmount = lpTax + treasuryTax;
-            } else {
-                // All tax → Treasury
-                taxAmount = (amount * taxFee) / 1e18;
-                if (taxAmount > 0) super._update(from, treasuryAddress, taxAmount);
-            }
+            // All tax → Treasury
+            taxAmount = (amount * taxFee) / 1e18;
+            if (taxAmount > 0) super._update(from, treasuryAddress, taxAmount);
         }
 
         // Net transfer to user
         unchecked {
             super._update(from, to, amount - taxAmount);
         }
-    }
-
-    /**
-     * TODO
-     */
-    function checkLPHealth() internal pure returns (uint256) {
-        return 1;
     }
 
     /**
@@ -157,5 +148,35 @@ contract FundRaisingToken is ERC20, Ownable {
         uint256 totalSupply = totalSupply();
 
         return (treasuryBalance * 1e18) / totalSupply;
+    }
+
+    /**
+     * @notice Checks if a transfer is blocked based on launch protection, cooldown period, and max buy size.
+     * @param _account The address of the account to check
+     * @param _amount The amount to be transferred
+     * @return True if the transfer is blocked, false otherwise
+     */
+    function isTransferBlocked(address _account, uint256 _amount) internal view returns (bool) {
+        // Block transfers during launch protection
+        if (block.number < launchBlock + blocksToHold || block.timestamp < luanchTimestamp + 1 hours) {
+            return true;
+        }
+
+        uint256 lastBuy = lastBuyTimestamp[_account];
+
+        // Block transfers if within cooldown
+        if (block.timestamp < lastBuy + perWalletCoolDownPeriod) {
+            return true;
+        }
+
+        uint256 _maxBuySize = totalSupply() * maxBuySize / 1e18;
+
+        // Block transfers above max buy size
+        if (_amount > _maxBuySize) {
+            return true;
+        }
+
+        // Otherwise transfer is allowed
+        return false;
     }
 }
