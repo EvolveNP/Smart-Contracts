@@ -12,10 +12,16 @@ contract DonationWallet {
         owner = _owner;
     }
 
+    /**
+     * TODO
+     */
     function transferAsset() external view {
         require(fundraisingTokenAddress.balanceOf(address(this)) > 0, "No tokens to transfer");
     }
 
+    /**
+     * TODO
+     */
     function swapFundraisingToken() external {
         // Logic to swap FundRaisingToken for ETH and send to treasury
     }
