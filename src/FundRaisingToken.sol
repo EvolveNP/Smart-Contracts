@@ -112,7 +112,11 @@ contract FundRaisingToken is ERC20, Ownable {
             super._update(from, to, amount);
             return;
         }
-
+        // Block transfers if transfer is blocked
+        if (isTransferBlocked(to, amount) || isTransferBlocked(from, amount)) {
+            revert("Transfer blocked");
+        }
+        require(!isTransferBlocked(from, amount), "transfer not allowed");
         // Exempt system addresses
         if (
             from == lpManager || to == lpManager || from == donationAddress || to == donationAddress
@@ -146,5 +150,33 @@ contract FundRaisingToken is ERC20, Ownable {
         return (treasuryBalance * 1e18) / totalSupply;
     }
 
-    function isTransferBlocked(address _account) internal returns (bool) {}
+    /**
+     * @notice Checks if a transfer is blocked based on launch protection, cooldown period, and max buy size.
+     * @param _account The address of the account to check
+     * @param _amount The amount to be transferred
+     * @return True if the transfer is blocked, false otherwise
+     */
+    function isTransferBlocked(address _account, uint256 _amount) internal view returns (bool) {
+        // Block transfers during launch protection
+        if (block.number < launchBlock + blocksToHold || block.timestamp < luanchTimestamp + 1 hours) {
+            return true;
+        }
+
+        uint256 lastBuy = lastBuyTimestamp[_account];
+
+        // Block transfers if within cooldown
+        if (block.timestamp < lastBuy + perWalletCoolDownPeriod) {
+            return true;
+        }
+
+        uint256 _maxBuySize = totalSupply() * maxBuySize / 1e18;
+
+        // Block transfers above max buy size
+        if (_amount > _maxBuySize) {
+            return true;
+        }
+
+        // Otherwise transfer is allowed
+        return false;
+    }
 }
