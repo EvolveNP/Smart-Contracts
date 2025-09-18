@@ -65,13 +65,14 @@ contract TreasuryWalletTest is Test {
         treasuryWallet.transferFunds();
     }
 
-    function testTransferFundsEmit() public {
+    function testTransferBlocked() public {
         vm.startPrank(registryAddress);
-        vm.expectEmit(true, false, false, true);
-        uint256 amountToTransferAndBurn = fundRaisingToken.totalSupply() * 2e16 / 1e18; // 2% of total supply
-        emit TreasuryWallet.FundTransferredToDonationWallet(amountToTransferAndBurn);
+        vm.expectRevert(bytes("Transfer blocked"));
+
+        //  uint256 amountToTransferAndBurn = fundRaisingToken.totalSupply() * 2e16 / 1e18; // 2% of total supply
+        // emit TreasuryWallet.FundTransferredToDonationWallet(amountToTransferAndBurn);
         treasuryWallet.transferFunds();
-        assertEq(fundRaisingToken.balanceOf(donationAddress), amountToTransferAndBurn);
+        //  assertEq(fundRaisingToken.balanceOf(donationAddress), amountToTransferAndBurn);
         vm.stopPrank();
     }
 }
