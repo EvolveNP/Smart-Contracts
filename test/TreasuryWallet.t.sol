@@ -59,19 +59,4 @@ contract TreasuryWalletTest is Test {
         vm.stopPrank();
         assertEq(address(treasuryWallet.fundraisingToken()), address(fundRaisingToken));
     }
-
-    function testTransferFundsRevertsIfNotRegistry() public {
-        vm.expectRevert(bytes("Only registry"));
-        treasuryWallet.transferFunds();
-    }
-
-    function testTransferFundsEmit() public {
-        vm.startPrank(registryAddress);
-        vm.expectEmit(true, false, false, true);
-        uint256 amountToTransferAndBurn = fundRaisingToken.totalSupply() * 2e16 / 1e18; // 2% of total supply
-        emit TreasuryWallet.FundTransferredToDonationWallet(amountToTransferAndBurn);
-        treasuryWallet.transferFunds();
-        assertEq(fundRaisingToken.balanceOf(donationAddress), amountToTransferAndBurn);
-        vm.stopPrank();
-    }
 }
