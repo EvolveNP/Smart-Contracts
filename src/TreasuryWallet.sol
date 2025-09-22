@@ -13,6 +13,10 @@ contract TreasuryWallet is AutomationCompatibleInterface {
     address public immutable factoryAddress; // The address of the factory contract
     address public registryAddress; // The address of the chainlink registry contract
     uint256 public constant minimumThreshold = 15e16; // The minimum threshold for transferring funds
+    address public immutable lpAddress; // The address of the Liquidity pool
+    uint256 public constant transferInterval = 30 days; // The interval at which funds transferred to donation wallet
+    uint256 public lastTransferTimestamp;
+    uint256 internal constant healthThreshold = 7e16; // The health threshold
 
     //  address internal
 
@@ -40,18 +44,45 @@ contract TreasuryWallet is AutomationCompatibleInterface {
         _;
     }
 
-    constructor(address _donationAddress, address _factoryAddress, address _registryAddress)
+    constructor(address _donationAddress, address _factoryAddress, address _registryAddress, address _lpAddress)
         nonZeroAddress(_donationAddress)
         nonZeroAddress(_factoryAddress)
+        nonZeroAddress(_lpAddress)
     {
         donationAddress = _donationAddress;
         factoryAddress = _factoryAddress;
         registryAddress = _registryAddress;
+        lpAddress = _lpAddress;
     }
 
-    function checkUpkeep(bytes calldata checkData) external returns (bool upkeepNeeded, bytes memory performData) {}
+    function checkUpkeep(bytes calldata checkData)
+        external
+        view
+        returns (bool upkeepNeeded, bytes memory performData)
+    {
+        uint256 transferDate = lastTransferTimestamp + transferInterval;
+        uint256 lpCurrentThreshold = 1e18; //TODO
+        bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());
+        bool initiateAddLiqudity = (healthThreshold > lpCurrentThreshold);
 
-    function performUpkeep(bytes calldata performData) external {}
+        upkeepNeeded = (initiateTransfer || initiateAddLiqudity);
+
+        if (upkeepNeeded) {
+            performData = abi.encode(initiateTransfer, initiateAddLiqudity);
+        } else {
+            performData = bytes(""); // explicit empty
+        }
+    }
+
+    function performUpkeep(bytes calldata performData) external {
+        // add 2% of liquidity to lp if lp pool is unhealthy
+        // send fund to donation wallet if the requirments met
+    }
+
+    // add liquidity
+    function addLiquidity() external {
+        // add liquidity and send to dead wallet
+    }
 
     /**
      *
