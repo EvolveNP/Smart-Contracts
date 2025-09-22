@@ -2,8 +2,9 @@
 pragma solidity 0.8.22;
 
 import {IFundraisingToken} from "./interfaces/IFundraisingToken.sol";
+import {AutomationCompatibleInterface} from "./interfaces/AutomationCompatibleInterface.sol";
 
-contract TreasuryWallet {
+contract TreasuryWallet is AutomationCompatibleInterface {
     /**
      * State Variables
      */
@@ -47,6 +48,10 @@ contract TreasuryWallet {
         factoryAddress = _factoryAddress;
         registryAddress = _registryAddress;
     }
+
+    function checkUpkeep(bytes calldata checkData) external returns (bool upkeepNeeded, bytes memory performData) {}
+
+    function performUpkeep(bytes calldata performData) external {}
 
     /**
      *
