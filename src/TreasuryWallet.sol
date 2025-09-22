@@ -44,17 +44,24 @@ contract TreasuryWallet is AutomationCompatibleInterface {
         _;
     }
 
-    constructor(address _donationAddress, address _factoryAddress, address _registryAddress, address _lpAddress)
+    /**
+     *
+     * @param _donationAddress The address of the donation wallet
+     * @param _factoryAddress The address of the factory contract
+     * @param _registryAddress The address of the registry
+     */
+    constructor(address _donationAddress, address _factoryAddress, address _registryAddress)
         nonZeroAddress(_donationAddress)
         nonZeroAddress(_factoryAddress)
-        nonZeroAddress(_lpAddress)
     {
         donationAddress = _donationAddress;
         factoryAddress = _factoryAddress;
         registryAddress = _registryAddress;
-        lpAddress = _lpAddress;
     }
 
+    /**
+     * See {AutomationCompatibleInterace - checkUpKeep}
+     */
     function checkUpkeep(bytes calldata checkData)
         external
         view
@@ -70,10 +77,13 @@ contract TreasuryWallet is AutomationCompatibleInterface {
         if (upkeepNeeded) {
             performData = abi.encode(initiateTransfer, initiateAddLiqudity);
         } else {
-            performData = bytes(""); // explicit empty
+            performData = bytes("");
         }
     }
 
+    /**
+     * See {AutomationCompatibleInterace - performUpkeep}
+     */
     function performUpkeep(bytes calldata performData) external {
         (bool initiateTransfer, bool initiateAddLiquidity) = abi.decode(performData, (bool, bool));
 
@@ -86,14 +96,18 @@ contract TreasuryWallet is AutomationCompatibleInterface {
         }
     }
 
-    // add liquidity
+    /**
+     * TODO
+     */
     function addLiquidity() internal {
         // add liquidity and send to dead wallet
+        // step1 swap to underlying token
     }
 
     /**
-     *
+     * @notice Sets the fundraising token address
      * @param _fundraisingToken The address of the fundraising token
+     * @dev Only set via factory contract
      */
     function setFundraisingToken(address _fundraisingToken) external onlyFactory {
         fundraisingToken = IFundraisingToken(_fundraisingToken);
@@ -116,6 +130,10 @@ contract TreasuryWallet is AutomationCompatibleInterface {
         emit FundTransferredToDonationWallet(amountToTransferAndBurn);
     }
 
+    /**
+     * @notice Check if the conditions are mate to send fundraising token to donation wallet
+     *         and burn
+     */
     function isTransferAllowed() internal view returns (bool) {
         uint256 treasuryBalance = fundraisingToken.balanceOf(address(this));
         uint256 totalSupply = fundraisingToken.totalSupply();
