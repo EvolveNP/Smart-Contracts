@@ -75,12 +75,19 @@ contract TreasuryWallet is AutomationCompatibleInterface {
     }
 
     function performUpkeep(bytes calldata performData) external {
-        // add 2% of liquidity to lp if lp pool is unhealthy
-        // send fund to donation wallet if the requirments met
+        (bool initiateTransfer, bool initiateAddLiquidity) = abi.decode(performData, (bool, bool));
+
+        if (initiateTransfer) {
+            transferFunds();
+        }
+
+        if (initiateAddLiquidity) {
+            addLiquidity();
+        }
     }
 
     // add liquidity
-    function addLiquidity() external {
+    function addLiquidity() internal {
         // add liquidity and send to dead wallet
     }
 
@@ -98,7 +105,7 @@ contract TreasuryWallet is AutomationCompatibleInterface {
      * @dev Can only be called by the registry contract and
      *      only if the treasury wallet balance is above the minimum threshold
      */
-    function transferFunds() external onlyRegistry {
+    function transferFunds() internal onlyRegistry {
         uint256 amountToTransferAndBurn = 0;
         if (isTransferAllowed()) {
             amountToTransferAndBurn = fundraisingToken.totalSupply() * 2e16 / 1e18; // 2% of total supply
