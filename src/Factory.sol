@@ -77,5 +77,7 @@ contract Factory is Ownable {
     /**
      * TODO
      */
-    function createPool() external onlyOwner {}
+    function createPool() external onlyOwner {
+        // create a uniswap pool
+    }
 }
