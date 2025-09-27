@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.22;
+pragma solidity 0.8.26;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {FundRaisingToken} from "./FundRaisingToken.sol";
 import {TreasuryWallet} from "./TreasuryWallet.sol";
 import {DonationWallet} from "./DonationWallet.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {PoolManager} from "v4-core/src/PoolManager.sol";
 
 contract Factory is Ownable {
     struct FundRaisingAddresses {
@@ -22,6 +26,7 @@ contract Factory is Ownable {
     event FundraisingVaultCreated(
         address fundraisingToken, address treasuryWallet, address donationWallet, address owner
     );
+    event LiquidityPoolCreated(address lpAddress, address owner);
 
     modifier nonZeroAddress(address _address) {
         require(_address != address(0), "Zero address");
@@ -32,8 +37,12 @@ contract Factory is Ownable {
      *
      * @param _registryAddress The address of chainlink automation registry address
      */
-    constructor(address _registryAddress) Ownable(msg.sender) nonZeroAddress(_registryAddress) {
+    constructor(address _registryAddress, address _uniswapV4PoolManager)
+        Ownable(msg.sender)
+        nonZeroAddress(_registryAddress)
+    {
         registryAddress = _registryAddress;
+        uniswapV4PoolManager = _uniswapV4PoolManager;
     }
 
     /**
@@ -75,9 +84,46 @@ contract Factory is Ownable {
     }
 
     /**
-     * TODO
+     * @notice Creates a Uniswap V4 pool for the fundraising token and another currency
+     * @param _currency0 The address of the first currency in the pool (fundraising token)
+     * @param _currency1 The address of the second currency in the pool
+     * @param _fee The fee tier of the pool
+     * @param _sqrtPriceX96 The initial square root price of the pool
+     * @param _tickSpacing The tick spacing of the pool
+     * @param _hooks The address of the hooks contract
+     * @param _owner The owner of the pool manager
+     * @dev Only callable by the owner of the factory contract
      */
-    function createPool() external onlyOwner {
-        // create a uniswap pool
+    function createPool(
+        address _currency0,
+        address _currency1,
+        uint24 _fee,
+        uint160 _sqrtPriceX96,
+        int24 _tickSpacing,
+        address _hooks,
+        address _owner
+    ) external onlyOwner {
+        PoolKey memory poolKey = PoolKey({
+            currency0: _currency0,
+            currency1: _currency1,
+            fee: _fee,
+            tickSpacing: _tickSpacing,
+            hooks: IHooks(_hooks)
+        });
+
+        IPoolManager poolManager = new PoolManager(msg.sender);
+
+        poolManager.initialize(poolKey, _sqrtPriceX96);
+
+        FundRaisingAddresses storage addresses = fundraisingAddresses[_owner];
+        addresses.lpAddress = address(poolManager);
+
+        // set lp address in fundraising token
+        FundRaisingToken(addresses.fundraisingToken).setLPAddress(address(poolManager));
+
+        // set lp address in treasury wallet
+        TreasuryWallet(addresses.treasuryWallet).setLPAddress(address(poolManager));
+
+        emit LiquidityPoolCreated(address(poolManager), _owner);
     }
 }
