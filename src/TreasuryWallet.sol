@@ -7,8 +7,9 @@ import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {Swap} from "./abstracts/Swap.sol";
 
-contract TreasuryWallet is AutomationCompatibleInterface {
+contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
      * State Variables
      */
@@ -113,9 +114,9 @@ contract TreasuryWallet is AutomationCompatibleInterface {
         address _recipient,
         address _positionManager
     ) internal {
-        /**
-         * TODO: Swap
-         */
+        
+        swapExactInputSingle(_amount0, (_amount0 * 95e16) / 1e18); // swap 5% slippage
+
         IPositionManager positionManager = IPositionManager(_positionManager);
         // swap amount of fundraising token for currency0 and currency1
         bytes memory actions = abi.encodePacked(uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.SETTLE_PAIR));
