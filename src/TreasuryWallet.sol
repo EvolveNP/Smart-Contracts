@@ -3,6 +3,10 @@ pragma solidity 0.8.26;
 
 import {IFundraisingToken} from "./interfaces/IFundraisingToken.sol";
 import {AutomationCompatibleInterface} from "./interfaces/AutomationCompatibleInterface.sol";
+import {Actions} from "v4-periphery/src/libraries/Actions.sol";
+import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+import {Currency} from "v4-core/src/types/Currency.sol";
+import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
 
 contract TreasuryWallet is AutomationCompatibleInterface {
     /**
@@ -18,14 +22,13 @@ contract TreasuryWallet is AutomationCompatibleInterface {
     uint256 public lastTransferTimestamp;
     uint256 internal constant healthThreshold = 7e16; // The health threshold
 
-    //  address internal
-
     /**
      * Events
      */
     event FundraisingTokenSet(address fundraisingToken);
     event FundTransferredToDonationWallet(uint256 amountTransferredAndBurned);
     event LPAddressSet(address lpAddress);
+    event LPHealthAdjusted(address recipient, uint256 amount0, uint256 amount1);
 
     /**
      * Modifiers
@@ -93,16 +96,47 @@ contract TreasuryWallet is AutomationCompatibleInterface {
         }
 
         if (initiateAddLiquidity) {
-            addLiquidity();
+            // addLiquidity();
         }
     }
 
     /**
      * TODO
      */
-    function addLiquidity() internal {
-        // add liquidity and send to dead wallet
-        // step1 swap to underlying token
+    function addLiquidity(
+        uint256 _tokenId,
+        uint256 _liquidity,
+        uint256 _amount0,
+        uint256 _amount1,
+        address _currency0,
+        address _currency1,
+        address _recipient,
+        address _positionManager
+    ) internal {
+        /**
+         * TODO: Swap
+         */
+        IPositionManager positionManager = IPositionManager(_positionManager);
+        // swap amount of fundraising token for currency0 and currency1
+        bytes memory actions = abi.encodePacked(uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.SETTLE_PAIR));
+        bytes[] memory params = new bytes[](2);
+
+        params[0] = abi.encode(_tokenId, _liquidity, _amount0, _amount1, IHooks(address(0)));
+
+        // If converting fees to liquidity, forfeiting dust:
+        Currency currency0 = Currency.wrap(_currency0); // tokenAddress1 = 0 for native ETH
+        Currency currency1 = Currency.wrap(_currency1); // tokenAddress2 = 0 for native ETH
+        params[1] = abi.encode(currency0, currency1);
+
+        params[2] = abi.encode(address(0), _recipient);
+
+        uint256 deadline = block.timestamp + 60;
+
+        uint256 valueToPass = currency0.isAddressZero() ? _amount0 : 0;
+
+        positionManager.modifyLiquidities{value: valueToPass}(abi.encode(actions, params), deadline);
+
+        emit LPHealthAdjusted(_recipient, _amount0, _amount1);
     }
 
     /**
