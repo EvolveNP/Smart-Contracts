@@ -9,6 +9,7 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolManager} from "v4-core/src/PoolManager.sol";
+import {Currency} from "v4-core/src/types/Currency.sol";
 
 contract Factory is Ownable {
     struct FundRaisingAddresses {
@@ -37,12 +38,8 @@ contract Factory is Ownable {
      *
      * @param _registryAddress The address of chainlink automation registry address
      */
-    constructor(address _registryAddress, address _uniswapV4PoolManager)
-        Ownable(msg.sender)
-        nonZeroAddress(_registryAddress)
-    {
+    constructor(address _registryAddress) Ownable(msg.sender) nonZeroAddress(_registryAddress) {
         registryAddress = _registryAddress;
-        uniswapV4PoolManager = _uniswapV4PoolManager;
     }
 
     /**
@@ -103,9 +100,15 @@ contract Factory is Ownable {
         address _hooks,
         address _owner
     ) external onlyOwner {
+
+        // wrap currencies
+        
+        Currency currency0 = Currency.wrap(_currency0);
+        Currency currency1 = Currency.wrap(_currency1);
+
         PoolKey memory poolKey = PoolKey({
-            currency0: _currency0,
-            currency1: _currency1,
+            currency0: currency0,
+            currency1: currency1,
             fee: _fee,
             tickSpacing: _tickSpacing,
             hooks: IHooks(_hooks)
@@ -125,5 +128,9 @@ contract Factory is Ownable {
         TreasuryWallet(addresses.treasuryWallet).setLPAddress(address(poolManager));
 
         emit LiquidityPoolCreated(address(poolManager), _owner);
+    }
+
+    function addInitialLquidity() external {
+        // TODO
     }
 }
