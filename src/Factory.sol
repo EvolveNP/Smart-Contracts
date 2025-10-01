@@ -59,7 +59,7 @@ contract Factory is Ownable {
         onlyOwner
     {
         // deploy donation wallet
-        DonationWallet donationWallet = new DonationWallet(address(this), _owner);
+        DonationWallet donationWallet = new DonationWallet(address(this), _owner, address(0), address(0), address(0));
 
         // deploy treasury wallet
         TreasuryWallet treasuryWallet = new TreasuryWallet(address(donationWallet), address(this), registryAddress);

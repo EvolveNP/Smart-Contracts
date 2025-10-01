@@ -56,6 +56,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * @param _registryAddress The address of the registry
      */
     constructor(address _donationAddress, address _factoryAddress, address _registryAddress)
+        Swap(donationAddress, factoryAddress, registryAddress)
         nonZeroAddress(_donationAddress)
         nonZeroAddress(_factoryAddress)
     {
@@ -107,14 +108,13 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     function addLiquidity(
         uint256 _tokenId,
         uint256 _liquidity,
-        uint256 _amount0,
-        uint256 _amount1,
+        uint128 _amount0,
+        uint128 _amount1,
         address _currency0,
         address _currency1,
         address _recipient,
         address _positionManager
     ) internal {
-        
         swapExactInputSingle(_amount0, (_amount0 * 95e16) / 1e18); // swap 5% slippage
 
         IPositionManager positionManager = IPositionManager(_positionManager);

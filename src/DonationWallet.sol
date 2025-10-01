@@ -21,10 +21,6 @@ contract DonationWallet is Swap {
     address public immutable owner; // Owner of the DonationWallet
     address public immutable factoryAddress; // The address of the factory contract
 
-    UniversalRouter public immutable router;
-    IPoolManager public immutable poolManager;
-    IPermit2 public immutable permit2;
-
     event FundraisingTokenAddressSet(address fundraisingToken);
     event FundsTransferredToNonProfit(address recipient, uint256 amount);
 
@@ -56,18 +52,13 @@ contract DonationWallet is Swap {
      * TODO
      */
     function swapFundraisingToken() external {
-        swapExactInputSingle(fundraisingTokenAddress.balanceOf(address(this)), 1);
+        swapExactInputSingle(uint128(fundraisingTokenAddress.balanceOf(address(this))), 1);
 
-        uint256 balance = IERC20(key.currency1).balanceOf(address(this));
+        uint256 balance = IERC20(address(1)).balanceOf(address(this));
 
-        IERC20(key.currency1).transfer(owner, balance);
+        IERC20((address(1))).transfer(owner, balance);
 
         emit FundsTransferredToNonProfit(owner, balance);
-    }
-
-    function approveTokenWithPermit2(address token, uint160 amount, uint48 expiration) external {
-        IERC20(token).approve(address(permit2), type(uint256).max);
-        permit2.approve(token, address(router), amount, expiration);
     }
 
     /**

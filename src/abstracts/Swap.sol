@@ -11,7 +11,6 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
 
-
 abstract contract Swap {
     UniversalRouter public immutable router;
     IPoolManager public immutable poolManager;
@@ -23,7 +22,7 @@ abstract contract Swap {
         permit2 = IPermit2(_permit2);
     }
 
-    function swapExactInputSingle(uint256 amountIn, uint256 minAmountOut) internal {
+    function swapExactInputSingle(uint128 amountIn, uint128 minAmountOut) internal {
         // Encode V4Router actions
         PoolKey memory key;
         bytes memory actions =
