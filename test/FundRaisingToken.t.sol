@@ -5,12 +5,13 @@ import {Test, console} from "forge-std/Test.sol";
 
 import {FundRaisingToken} from "../src/FundRaisingToken.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {console} from "forge-std/console.sol";
 
 contract FundRaisingTokenTest is Test {
     FundRaisingToken public fundRaisingToken;
 
     address public constant lpManager = address(0x1);
-    address public constant treasuryAddress = donationAddress;
+    address public constant treasuryAddress = address(0x2);
     address public constant donationAddress = address(0x3);
     address public constant factoryAddress = address(0x4);
     uint256 public constant totalSupply = 1e27; // 1 billion tokens with 18 decimals
@@ -130,5 +131,112 @@ contract FundRaisingTokenTest is Test {
         fundRaisingToken.setLuanchBlockAndTimestamp();
     }
 
-    function testTransferCannotTrade() public {}
+    function testTransferLpManagerCanTransferToLPPool() public {
+        vm.prank(lpManager);
+        fundRaisingToken.transfer(address(0x10), 1e18);
+        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+    }
+
+    // function testTransferCannotTransderBlockToHoldNotPassed() public {
+    //     vm.prank(factoryAddress);
+    //     fundRaisingToken.setLuanchBlockAndTimestamp();
+    //     vm.prank(lpManager);
+    //     vm.expectRevert(FundRaisingToken.TransferBlocked.selector);
+    //     fundRaisingToken.transfer(address(0x10), 1e18);
+    // }
+
+    // function testTransferTradeIfBlockToHoldPassed() public {
+    //     vm.prank(factoryAddress);
+    //     fundRaisingToken.setLuanchBlockAndTimestamp();
+    //     vm.roll(block.number + 11);
+    //     vm.prank(lpManager);
+    //     fundRaisingToken.transfer(address(0x10), 1e18);
+    //     assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+    // }
+
+    function testTransferCannotCutTaxIfTransferInitiatedFromLPManager() public {
+        vm.prank(lpManager);
+        fundRaisingToken.transfer(address(0x10), 1e18);
+        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+    }
+
+    function testTransferCannotCutTaxIfTransferIsToLPManager() public {
+        vm.prank(lpManager);
+        fundRaisingToken.transfer(address(0x10), 1e18);
+        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+
+        vm.prank(address(0x10));
+        fundRaisingToken.transfer(lpManager, 1e18);
+        assertEq(fundRaisingToken.balanceOf(lpManager), 75e25);
+    }
+
+    function testTransferCannotCutTaxIfTransferInitiatedFromDonationAddress() public {
+        vm.prank(lpManager);
+        fundRaisingToken.transfer(donationAddress, 1e18);
+        assertEq(fundRaisingToken.balanceOf(donationAddress), 1e18);
+
+        vm.prank(donationAddress);
+        fundRaisingToken.transfer(address(0x10), 1e18);
+        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+    }
+
+    function testTransferCannotCutTaxIfTransferIsToDonationAddress() public {
+        vm.prank(lpManager);
+        fundRaisingToken.transfer(address(0x10), 1e18);
+        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+
+        vm.prank(address(0x10));
+        fundRaisingToken.transfer(donationAddress, 1e18);
+        assertEq(fundRaisingToken.balanceOf(donationAddress), 1e18);
+    }
+
+    function testTransferCannotCutTaxIfTransferInitiatedFromTreasuryAddress() public {
+        vm.prank(lpManager);
+        fundRaisingToken.transfer(treasuryAddress, 1e18);
+        assertEq(fundRaisingToken.balanceOf(treasuryAddress), 1e18 + 25e25);
+
+        vm.prank(treasuryAddress);
+        fundRaisingToken.transfer(address(0x10), 1e18);
+        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+    }
+
+    function testTransferCannotCutTaxIfTransferIsToTreasuryAddress() public {
+        vm.prank(lpManager);
+        fundRaisingToken.transfer(address(0x10), 1e18);
+        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+
+        vm.prank(address(0x10));
+        fundRaisingToken.transfer(treasuryAddress, 1e18);
+        assertEq(fundRaisingToken.balanceOf(treasuryAddress), 1e18 + 25e25);
+    }
+
+    function testTransferCannotCutTaxIfTreasuryBalanceIsGreaterthanMaximumThreshold() public {
+        vm.prank(lpManager);
+        fundRaisingToken.transfer(treasuryAddress, 10e25);
+        assertEq(fundRaisingToken.balanceOf(treasuryAddress), 35e25);
+
+        vm.prank(lpManager);
+        fundRaisingToken.transfer(address(0x10), 1e18);
+        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+
+        vm.prank(address(0x10));
+        fundRaisingToken.transfer(address(0x20), 1e18);
+
+        assertEq(fundRaisingToken.balanceOf(address(0x20)), 1e18);
+
+        assertEq(fundRaisingToken.balanceOf(treasuryAddress), 35e25);
+    }
+
+    function testTransferCutsTaxIfNotFromOrToSystemAddresses() public {
+        vm.prank(lpManager);
+        fundRaisingToken.transfer(address(0x10), 1e18);
+        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+
+        vm.prank(address(0x10));
+        fundRaisingToken.transfer(address(0x20), 1e18);
+        // 1e18 - 2% tax = 0.98e18
+        assertEq(fundRaisingToken.balanceOf(address(0x20)), 98e16);
+        // Treasury should receive 2% tax = 0.02e18
+        assertEq(fundRaisingToken.balanceOf(treasuryAddress), 25e25 + 2e16);
+    }
 }

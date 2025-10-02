@@ -3,6 +3,7 @@ pragma solidity 0.8.26;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {console} from "forge-std/console.sol";
 
 contract FundRaisingToken is ERC20, Ownable {
     /**
@@ -30,6 +31,7 @@ contract FundRaisingToken is ERC20, Ownable {
     uint256 internal constant perWalletCoolDownPeriod = 1 minutes;
     uint256 internal constant maxBuySize = 333e13; // 0.333% of total supply
     uint256 internal constant blocksToHold = 10;
+    uint256 internal constant timeToHold = 1 hours;
     uint256 internal launchBlock; // The block number when the token was launched
     address internal immutable factoryAddress; // The address of the factory contract
     mapping(address => uint256) internal lastBuyTimestamp; // The last buy timestamp for each address
@@ -126,10 +128,7 @@ contract FundRaisingToken is ERC20, Ownable {
             super._update(from, to, amount);
             return;
         }
-        // Block transfers if transfer is blocked
-        if (isTransferBlocked(to, amount) || isTransferBlocked(from, amount)) {
-            revert TransferBlocked();
-        }
+
         // Exempt system addresses
         if (
             from == lpManager || to == lpManager || from == donationAddress || to == donationAddress
@@ -164,32 +163,35 @@ contract FundRaisingToken is ERC20, Ownable {
     }
 
     /**
+     * TODO: Use this in uniswap hook
      * @notice Checks if a transfer is blocked based on launch protection, cooldown period, and max buy size.
      * @param _account The address of the account to check
      * @param _amount The amount to be transferred
      * @return True if the transfer is blocked, false otherwise
      */
-    function isTransferBlocked(address _account, uint256 _amount) internal view returns (bool) {
+    function isTransferBlocked(address _account, uint256 _amount) internal returns (bool, bool) {
         // Block transfers during launch protection
-        if (block.number < launchBlock + blocksToHold || block.timestamp < luanchTimestamp + 1 hours) {
-            return true;
+        if (launchBlock == 0 && luanchTimestamp == 0) return (false, false); // Not launched yet
+        //Hold for a specific block after launch
+        if (block.number < launchBlock + blocksToHold) return (true, false);
+
+        if (block.timestamp < luanchTimestamp + timeToHold) {
+            // Block transfers if within time to hold after launch
+            uint256 lastBuy = lastBuyTimestamp[_account];
+            lastBuyTimestamp[_account] = block.timestamp;
+
+            uint256 _maxBuySize = totalSupply() * maxBuySize / 1e18;
+
+            if (_amount > _maxBuySize) return (true, false);
+
+            // Block transfers if within cooldown
+            if (lastBuy != 0 && block.timestamp < lastBuy + perWalletCoolDownPeriod) return (true, false);
+            return (false, true);
         }
+        return (false, false);
+    }
 
-        uint256 lastBuy = lastBuyTimestamp[_account];
-
-        // Block transfers if within cooldown
-        if (block.timestamp < lastBuy + perWalletCoolDownPeriod) {
-            return true;
-        }
-
-        uint256 _maxBuySize = totalSupply() * maxBuySize / 1e18;
-
-        // Block transfers above max buy size
-        if (_amount > _maxBuySize) {
-            return true;
-        }
-
-        // Otherwise transfer is allowed
-        return false;
+    function updateLastBuyTimestamp(address _account) internal {
+        lastBuyTimestamp[_account] = block.timestamp;
     }
 }
