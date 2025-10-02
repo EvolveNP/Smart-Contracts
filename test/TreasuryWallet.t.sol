@@ -20,7 +20,7 @@ contract TreasuryWalletTest is Test {
             donationAddress, factoryAddress, registryAddress, address(0x1), address(0x2), address(0x3), address(0x4)
         );
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken", "FRT", address(0x1), address(treasuryWallet), donationAddress, 1e27
+            "FundRaisingToken", "FRT", address(0x1), address(treasuryWallet), donationAddress, factoryAddress, 1e27
         );
         vm.prank(factoryAddress);
         treasuryWallet.setFundraisingToken(address(fundRaisingToken));

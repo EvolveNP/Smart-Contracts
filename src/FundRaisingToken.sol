@@ -12,6 +12,7 @@ contract FundRaisingToken is ERC20, Ownable {
     error ZeroAmount();
     error OnlyTreasury();
     error TransferBlocked();
+    error OnlyFactory();
 
     /**
      * State Variables
@@ -30,7 +31,7 @@ contract FundRaisingToken is ERC20, Ownable {
     uint256 internal constant maxBuySize = 333e13; // 0.333% of total supply
     uint256 internal constant blocksToHold = 10;
     uint256 internal launchBlock; // The block number when the token was launched
-
+    address internal immutable factoryAddress; // The address of the factory contract
     mapping(address => uint256) internal lastBuyTimestamp; // The last buy timestamp for each address
 
     /**
@@ -56,6 +57,11 @@ contract FundRaisingToken is ERC20, Ownable {
         _;
     }
 
+    modifier onlyFactory() {
+        if (msg.sender != factoryAddress) revert OnlyFactory();
+        _;
+    }
+
     /**
      *
      * @param name Name of the fundraising token
@@ -71,17 +77,20 @@ contract FundRaisingToken is ERC20, Ownable {
         address _lpManager,
         address _treasuryAddress,
         address _donationAddress,
+        address _factoryAddress,
         uint256 _totalSupply
     )
         ERC20(name, symbol)
         Ownable(_lpManager)
         nonZeroAddress(_treasuryAddress)
         nonZeroAddress(_donationAddress)
+        nonZeroAddress(_factoryAddress)
         nonZeroAmount(_totalSupply)
     {
         lpManager = _lpManager;
         treasuryAddress = _treasuryAddress;
         donationAddress = _donationAddress;
+        factoryAddress = _factoryAddress;
 
         // mint 75% to LP manager 100% = 1e18
         _mint(lpManager, (_totalSupply * 75e16) / 1e18);
@@ -97,7 +106,7 @@ contract FundRaisingToken is ERC20, Ownable {
         _burn(msg.sender, amount);
     }
 
-    function setLuanchBlockAndTimestamp() external {
+    function setLuanchBlockAndTimestamp() external onlyFactory {
         if (launchBlock == 0) {
             launchBlock = block.number;
             luanchTimestamp = block.timestamp;

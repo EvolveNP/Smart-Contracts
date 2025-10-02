@@ -93,7 +93,13 @@ contract Factory is Ownable {
 
         // Deploy fundraising token
         FundRaisingToken fundraisingToken = new FundRaisingToken(
-            _tokenName, _tokenSymbol, owner(), address(donationWallet), address(treasuryWallet), totalSupply
+            _tokenName,
+            _tokenSymbol,
+            owner(),
+            address(donationWallet),
+            address(treasuryWallet),
+            address(this),
+            totalSupply
         );
 
         // set fundraising token in donation wallet
