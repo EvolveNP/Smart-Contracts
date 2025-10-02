@@ -38,7 +38,7 @@ contract Factory is Ownable {
     uint24 internal constant defaultFee = 3000; // default fee tier for the pool
     int24 internal constant defaultTickSpacing = 60; // default tick spacing for the pool
     int24 internal constant maxTick = 120; // max tick for the pool
-    int24 internal constant minTick = -120; // min tick for the 
+    int24 internal constant minTick = -120; // min tick for the
     address internal immutable poolManager; // The address of the uniswap v4 pool manager
     address internal immutable positionManager; // The address of the uniswap v4 position manager
 
@@ -83,10 +83,13 @@ contract Factory is Ownable {
         onlyOwner
     {
         // deploy donation wallet
-        DonationWallet donationWallet = new DonationWallet(address(this), _owner, router, poolManager, permit2, positionManager);
+        DonationWallet donationWallet =
+            new DonationWallet(address(this), _owner, router, poolManager, permit2, positionManager);
 
         // deploy treasury wallet
-        TreasuryWallet treasuryWallet = new TreasuryWallet(address(donationWallet), address(this), registryAddress, router, poolManager, permit2, positionManager);
+        TreasuryWallet treasuryWallet = new TreasuryWallet(
+            address(donationWallet), address(this), registryAddress, router, poolManager, permit2, positionManager
+        );
 
         // Deploy fundraising token
         FundRaisingToken fundraisingToken = new FundRaisingToken(
@@ -204,6 +207,6 @@ contract Factory is Ownable {
     }
 
     function getPoolKey(address _owner) external view returns (PoolKey memory) {
-         return poolKeys[_owner];
+        return poolKeys[_owner];
     }
 }

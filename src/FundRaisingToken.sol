@@ -62,7 +62,6 @@ contract FundRaisingToken is ERC20, Ownable {
     )
         ERC20(name, symbol)
         Ownable(_lpManager)
-        nonZeroAddress(_lpManager)
         nonZeroAddress(_treasuryAddress)
         nonZeroAddress(_donationAddress)
         nonZeroAmount(_totalSupply)

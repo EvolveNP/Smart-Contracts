@@ -110,17 +110,12 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         }
     }
 
-    
-    function adjustLPHealth(
-        uint128 _amount0,
-        uint128 _amount1,
-        address _owner
-    ) internal {
+    function adjustLPHealth(uint128 _amount0, uint128 _amount1, address _owner) internal {
         // swap half of the amount in for currency0
-         PoolKey memory key = IFactory(factoryAddress).getPoolKey();
- 
+        PoolKey memory key = IFactory(factoryAddress).getPoolKey();
+
         uint256 amountOut = swapExactInputSingle(key, uint128(_amount0 * 95e16) / 1e18, 1); // swap 5% slippage
-      
+
         IFactory(factoryAddress).addLiquidity(
             _amount0 / 2,
             amountOut,

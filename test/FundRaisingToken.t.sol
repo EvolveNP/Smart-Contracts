@@ -20,7 +20,7 @@ contract FundRaisingTokenTest is Test {
     }
 
     function testConstructorRevertsOnZeroLPManagerAddress() public {
-        vm.expectRevert(bytes("Zero address"));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableInvalidOwner.selector, address(0)));
         new FundRaisingToken("FundRaisingToken", "FRT", address(0), treasuryAddress, donationAddress, 1e24);
     }
 
@@ -66,7 +66,7 @@ contract FundRaisingTokenTest is Test {
     }
 
     function testOwnerIsDeployer() public view {
-        assertEq(fundRaisingToken.owner(), address(this));
+        assertEq(fundRaisingToken.owner(), lpManager);
     }
 
     function testBurnRevertsOnZeroAmount() public {
@@ -104,4 +104,6 @@ contract FundRaisingTokenTest is Test {
         assertEq(fundRaisingToken.totalSupply(), initialTotalSupply - burnAmount);
         assertEq(fundRaisingToken.balanceOf(treasuryAddress), initialTreasuryBalance - burnAmount);
     }
+
+    function testTransfer() public {}
 }
