@@ -10,7 +10,6 @@ contract FundRaisingToken is ERC20, Ownable {
      */
     address public immutable lpManager; // The address of the liquidity pool manager
     address public immutable treasuryAddress; //The address of the treasury wallet
-    address public lpAddress; // The address of the liquidity pool
     address public immutable donationAddress; // The address of the donation wallet
     uint256 public constant taxFee = 2e16; // The tax fee on each transaction 2% = 2e16 (in basis points, e.g. 1e16 = 1%)
     uint256 public constant healthThreshold = 1e18; // The health threshold for the liquidity pool
@@ -25,11 +24,6 @@ contract FundRaisingToken is ERC20, Ownable {
     uint256 internal launchBlock; // The block number when the token was launched
 
     mapping(address => uint256) internal lastBuyTimestamp; // The last buy timestamp for each address
-
-    /**
-     * Events
-     */
-    event LPAddressUpdated(address lpAddress);
 
     /**
      * Modifiers
@@ -89,15 +83,6 @@ contract FundRaisingToken is ERC20, Ownable {
      */
     function burn(uint256 amount) external nonZeroAmount(amount) onlyTreasury(msg.sender) {
         _burn(msg.sender, amount);
-    }
-
-    /**
-     * @notice Sets the liquidity pool address. Only callable by the owner.
-     * @param _lpAddress Address of the liquidity pool
-     */
-    function setLPAddress(address _lpAddress) external nonZeroAddress(_lpAddress) onlyOwner {
-        lpAddress = _lpAddress;
-        emit LPAddressUpdated(_lpAddress);
     }
 
     /**
