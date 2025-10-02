@@ -13,6 +13,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Swap} from "./abstracts/Swap.sol";
+import {IFactory} from "./interfaces/IFactory.sol";
 
 contract DonationWallet is Swap {
     using StateLibrary for IPoolManager;
@@ -34,30 +35,32 @@ contract DonationWallet is Swap {
      * @param _factoryAddress The address of the factory contract
      * @param _owner The wallet address of non profit organization that receives the donation
      */
-    constructor(address _factoryAddress, address _owner, address _router, address _poolManager, address _permit2)
-        Swap(_router, _poolManager, _permit2)
-    {
+    constructor(
+        address _factoryAddress,
+        address _owner,
+        address _router,
+        address _poolManager,
+        address _permit2,
+        address _positionManager
+    ) Swap(_router, _poolManager, _permit2, _positionManager) {
         owner = _owner;
         factoryAddress = _factoryAddress;
     }
 
     /**
-     * TODO
-     */
-    function transferAsset() external view {
-        require(fundraisingTokenAddress.balanceOf(address(this)) > 0, "No tokens to transfer");
-    }
-
-    /**
-     * TODO
+     * @notice Swap all fundraising tokens to currency0 and transfer to non profit organization wallet
+     * @dev Callbale by chainlink automation
      */
     function swapFundraisingToken() external {
-        swapExactInputSingle(uint128(fundraisingTokenAddress.balanceOf(address(this))), 1);
+        uint256 amountIn = fundraisingTokenAddress.balanceOf(address(this));
 
-        uint256 balance = IERC20(address(1)).balanceOf(address(this));
+        PoolKey memory key = IFactory(factoryAddress).getPoolKey();
 
-        IERC20((address(1))).transfer(owner, balance);
+        uint256 amountOut = swapExactInputSingle(key, amountIn, 1);
 
+        address currency0 = Currency.unwrap(key.currency0);
+        bool success = IERC20(currency0).transfer(owner, balance);
+        require(success, "Transfer failed");
         emit FundsTransferredToNonProfit(owner, balance);
     }
 

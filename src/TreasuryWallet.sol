@@ -8,6 +8,7 @@ import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {Swap} from "./abstracts/Swap.sol";
+import {IFactory} from "./interfaces/IFactory.sol";
 
 contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
@@ -18,7 +19,6 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     address public immutable factoryAddress; // The address of the factory contract
     address public registryAddress; // The address of the chainlink registry contract
     uint256 public constant minimumThreshold = 15e16; // The minimum threshold for transferring funds
-    address public lpAddress; // The address of the Liquidity pool
     uint256 public constant transferInterval = 30 days; // The interval at which funds transferred to donation wallet
     uint256 public lastTransferTimestamp;
     uint256 internal constant healthThreshold = 7e16; // The health threshold
@@ -28,7 +28,6 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      */
     event FundraisingTokenSet(address fundraisingToken);
     event FundTransferredToDonationWallet(uint256 amountTransferredAndBurned);
-    event LPAddressSet(address lpAddress);
     event LPHealthAdjusted(address recipient, uint256 amount0, uint256 amount1);
 
     /**
@@ -55,8 +54,16 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * @param _factoryAddress The address of the factory contract
      * @param _registryAddress The address of the registry
      */
-    constructor(address _donationAddress, address _factoryAddress, address _registryAddress)
-        Swap(donationAddress, factoryAddress, registryAddress)
+    constructor(
+        address _donationAddress,
+        address _factoryAddress,
+        address _registryAddress,
+        address _router,
+        address _poolManager,
+        address _permit2,
+        address _positionManager
+    )
+        Swap(_router, _poolManager, _permit2, _positionManager)
         nonZeroAddress(_donationAddress)
         nonZeroAddress(_factoryAddress)
     {
@@ -102,41 +109,26 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         }
     }
 
-    /**
-     * TODO
-     */
-    function addLiquidity(
-        uint256 _tokenId,
+    
+    function adjustLPHealth(
         uint256 _liquidity,
         uint128 _amount0,
         uint128 _amount1,
         address _currency0,
         address _currency1,
-        address _recipient,
-        address _positionManager
+        address _owner
     ) internal {
-        swapExactInputSingle(_amount0, (_amount0 * 95e16) / 1e18); // swap 5% slippage
+        // swap half of the amount in for currency0
+        uint256 amountOut = swapExactInputSingle(_amount0, (_amount0 * 95e16) / 1e18); // swap 5% slippage
 
-        IPositionManager positionManager = IPositionManager(_positionManager);
-        // swap amount of fundraising token for currency0 and currency1
-        bytes memory actions = abi.encodePacked(uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.SETTLE_PAIR));
-        bytes[] memory params = new bytes[](2);
-
-        params[0] = abi.encode(_tokenId, _liquidity, _amount0, _amount1, IHooks(address(0)));
-
-        // If converting fees to liquidity, forfeiting dust:
-        Currency currency0 = Currency.wrap(_currency0); // tokenAddress1 = 0 for native ETH
-        Currency currency1 = Currency.wrap(_currency1); // tokenAddress2 = 0 for native ETH
-        params[1] = abi.encode(currency0, currency1);
-
-        params[2] = abi.encode(address(0), _recipient);
-
-        uint256 deadline = block.timestamp + 60;
-
-        uint256 valueToPass = currency0.isAddressZero() ? _amount0 : 0;
-
-        positionManager.modifyLiquidities{value: valueToPass}(abi.encode(actions, params), deadline);
-
+        IFactory(factoryAddress).addLiquidity(
+            _amount0 / 2,
+            amountOut,
+            _owner,
+            0, // _sqrtPriceX96
+            0, // _sqrtPriceAX96
+            0 // _sqrtPriceBX96
+        );
         emit LPHealthAdjusted(_recipient, _amount0, _amount1);
     }
 
@@ -148,11 +140,6 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     function setFundraisingToken(address _fundraisingToken) external onlyFactory {
         fundraisingToken = IFundraisingToken(_fundraisingToken);
         emit FundraisingTokenSet(_fundraisingToken);
-    }
-
-    function setLPAddress(address _lpAddress) external onlyFactory nonZeroAddress(_lpAddress) {
-        lpAddress = _lpAddress;
-        emit LPAddressSet(_lpAddress);
     }
 
     /**
@@ -184,5 +171,9 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         } else {
             return false;
         }
+    }
+
+    function getReserves() internal view returns (uint128 reserve0, uint128 reserve1) {
+        return (0, 0); // TODO
     }
 }

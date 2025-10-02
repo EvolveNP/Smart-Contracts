@@ -15,41 +15,40 @@ abstract contract Swap {
     UniversalRouter public immutable router;
     IPoolManager public immutable poolManager;
     IPermit2 public immutable permit2;
+    IPositionManager public immutable positionManager;
 
-    constructor(address _router, address _poolManager, address _permit2) {
+    constructor(address _router, address _poolManager, address _permit2, address _positionManager) {
         router = UniversalRouter(payable(_router));
         poolManager = IPoolManager(_poolManager);
         permit2 = IPermit2(_permit2);
+        positionManager = IPositionManager(_positionManager);
     }
 
-    function swapExactInputSingle(uint128 amountIn, uint128 minAmountOut) internal {
+    function swapExactInputSingle(PoolKey calldata key, uint128 amountIn, uint128 minAmountOut)
+        external
+        returns (uint256 amountOut)
+    {
+        // Encode the Universal Router command
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        bytes[] memory inputs = new bytes[](1);
+
         // Encode V4Router actions
-        PoolKey memory key;
         bytes memory actions =
             abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
+
+        // Prepare parameters for each action
         bytes[] memory params = new bytes[](3);
-
-        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
-
-        // First parameter: swap configuration
         params[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: key,
-                zeroForOne: true, // true if we're swapping token0 for token1
-                amountIn: amountIn, // amount of tokens we're swapping
-                amountOutMinimum: minAmountOut, // minimum amount we expect to receive
-                hookData: bytes("") // no hook data needed
+                zeroForOne: true,
+                amountIn: amountIn,
+                amountOutMinimum: minAmountOut,
+                hookData: bytes("")
             })
         );
-
-        // Second parameter: specify input tokens for the swap
-        // encode SETTLE_ALL parameters
         params[1] = abi.encode(key.currency0, amountIn);
-
-        // Third parameter: specify output tokens from the swap
         params[2] = abi.encode(key.currency1, minAmountOut);
-
-        bytes[] memory inputs = new bytes[](1);
 
         // Combine actions and params into inputs
         inputs[0] = abi.encode(actions, params);
@@ -57,6 +56,11 @@ abstract contract Swap {
         // Execute the swap
         uint256 deadline = block.timestamp + 20;
         router.execute(commands, inputs, deadline);
+
+        // Verify and return the output amount
+        amountOut = key.currency1.balanceOf(address(this));
+        require(amountOut >= minAmountOut, "Insufficient output amount");
+        return amountOut;
     }
 
     function approveTokenWithPermit2(address token, uint160 amount, uint48 expiration) external {

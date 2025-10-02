@@ -12,8 +12,11 @@ import {PoolManager} from "@uniswap/v4-core/src/PoolManager.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
+import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmounts.sol";
 
-contract Factory is Ownable {
+contract Factory is Ownable, LiquidityAmounts {
+    using LiquidityAmounts for uint160;
+
     struct FundRaisingAddresses {
         address fundraisingToken; // The address of the fundraising token
         address treasuryWallet; // the address of the treasury wallet
@@ -27,6 +30,17 @@ contract Factory is Ownable {
     uint256 internal constant totalSupply = 1e9; // the total supply of fundraising token
     address internal immutable registryAddress; // The address of chainlink automation registry address
     mapping(address => FundRaisingAddresses) public fundraisingAddresses; // non profit org wallet address => FundRaisingAddresses
+
+    // uniswap constants
+    mapping(address => PoolKey) public poolKeys; // lp address => pool key:  store pool keys for easy access
+    address internal immutable poolManager; // The address of the uniswap pool manager
+    address internal immutable positionManager; // The address of the uniswap position manager
+    address internal immutable router; // The address of the uniswap universal router
+    address internal immutable permit2; // The address of the uniswap permit2 contract
+    uint24 internal constant defaultFee = 3000; // default fee tier for the pool
+    int24 internal constant defaultTickSpacing = 60; // default tick spacing for the pool
+    int24 internal constant maxTick = 120; // max tick for the pool
+    int24 internal constant minTick = -120; // min tick for the pool
 
     event FundraisingVaultCreated(
         address fundraisingToken, address treasuryWallet, address donationWallet, address owner
@@ -43,8 +57,18 @@ contract Factory is Ownable {
      *
      * @param _registryAddress The address of chainlink automation registry address
      */
-    constructor(address _registryAddress) Ownable(msg.sender) nonZeroAddress(_registryAddress) {
+    constructor(
+        address _registryAddress,
+        address _poolManager,
+        address _positionManager,
+        address _router,
+        address _permit2
+    ) Ownable(msg.sender) nonZeroAddress(_registryAddress) {
         registryAddress = _registryAddress;
+        poolManager = _poolManager;
+        positionManager = _positionManager;
+        router = _router;
+        permit2 = _permit2;
     }
 
     /**
@@ -59,7 +83,7 @@ contract Factory is Ownable {
         onlyOwner
     {
         // deploy donation wallet
-        DonationWallet donationWallet = new DonationWallet(address(this), _owner, address(0), address(0), address(0));
+        DonationWallet donationWallet = new DonationWallet(address(this), _owner, router, poolManager, permit2);
 
         // deploy treasury wallet
         TreasuryWallet treasuryWallet = new TreasuryWallet(address(donationWallet), address(this), registryAddress);
@@ -93,38 +117,30 @@ contract Factory is Ownable {
 
     /**
      * @notice Creates a Uniswap V4 pool for the fundraising token and another currency
-     * @param _currency0 The address of the first currency in the pool (fundraising token)
-     * @param _currency1 The address of the second currency in the pool
-     * @param _fee The fee tier of the pool
+     * @param _currency0 The address of the first currency in the pool ex: USDC
+     * @param _currency1 The address of the second currency in the pool ex: FundRaisingToken
      * @param _sqrtPriceX96 The initial square root price of the pool
-     * @param _tickSpacing The tick spacing of the pool
-     * @param _hooks The address of the hooks contract
      * @param _owner The owner of the pool manager
      * @dev Only callable by the owner of the factory contract
+     * @dev _sqrtPriceX96 calculated as floor(sqrt(token0/token1) * 2^96)
      */
-    function createPool(
-        address _currency0,
-        address _currency1,
-        uint24 _fee,
-        uint160 _sqrtPriceX96,
-        int24 _tickSpacing,
-        address _hooks,
-        address _owner
-    ) external onlyOwner {
+    function createPool(address _currency0, address _currency1, uint160 _sqrtPriceX96, address _owner)
+        external
+        onlyOwner
+    {
         // wrap currencies
-
         Currency currency0 = Currency.wrap(_currency0);
         Currency currency1 = Currency.wrap(_currency1);
 
         PoolKey memory poolKey = PoolKey({
             currency0: currency0,
             currency1: currency1,
-            fee: _fee,
-            tickSpacing: _tickSpacing,
-            hooks: IHooks(_hooks)
+            fee: defaultFee,
+            tickSpacing: defaultTickSpacing,
+            hooks: address(0) // currently we don't use hooks
         });
 
-        IPoolManager poolManager = new PoolManager(msg.sender);
+        IPoolManager poolManager = PoolManager(poolManager);
 
         poolManager.initialize(poolKey, _sqrtPriceX96);
 
@@ -133,59 +149,62 @@ contract Factory is Ownable {
         addresses.currency0 = _currency0;
         addresses.currency1 = _currency1;
 
-        // set lp address in fundraising token
-        FundRaisingToken(addresses.fundraisingToken).setLPAddress(address(poolManager));
-
-        // set lp address in treasury wallet
-        TreasuryWallet(addresses.treasuryWallet).setLPAddress(address(poolManager));
+        // store pool key for easy access
+        poolKeys[_owner] = poolKey;
 
         emit LiquidityPoolCreated(address(poolManager), _owner);
     }
 
-    function addInitialLquidity(uint256 _amount0, uint256 _amount1, address _positionManager, address _owner)
-        external
-        onlyOwner
-    {
-        IPositionManager positionManager = IPositionManager(_positionManager);
+    /**
+     *
+     * @param _amount0 The amount of currency0 to add as initial liquidity
+     * @param _amount1 The amount of currency1 to add as initial liquidity
+     * @param _positionManager The address of the position manager
+     * @param _owner The owner of the pool manager
+     * @dev Only callable by the owner of the factory contract
+     */
+    function addLiquidity(
+        uint256 _amount0,
+        uint256 _amount1,
+        address _owner,
+        uint160 _sqrtPriceX96,
+        uint160 _sqrtPriceAX96,
+        uint160 _sqrtPriceBX96
+    ) external payable onlyOwner {
+        IPositionManager positionManager = IPositionManager(positionManager);
 
-        FundRaisingAddresses memory addresses = fundraisingAddresses[_owner];
+        PoolKey memory key = poolKeys[_owner];
 
         bytes memory actions;
-        if (addresses.currency1 == address(0)) {
+        bytes[] memory params;
+        if (Currency.unwarp(key.currency0) == address(0)) {
             actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
+            params = new bytes[](2);
         } else {
             // For ETH liquidity positions
             actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR), uint8(Actions.SWEEP));
+            params = new bytes[](3);
+
+            params[2] = abi.encode(address(0), owner()); // only for ETH liquidity positions
         }
-        bytes[] memory params = new bytes[](2); // new bytes[](3) for ETH liquidity positions
 
-        params[0] = abi.encode(
-            PoolKey({
-                currency0: Currency.wrap(addresses.currency0),
-                currency1: Currency.wrap(addresses.currency1),
-                fee: 3000,
-                tickSpacing: 60,
-                hooks: IHooks(address(0))
-            }),
-            -120,
-            120,
-            _amount0,
-            _amount1,
-            0xdead
-        );
+        uint128 liquidity =
+            _sqrtPriceX96.getLiquidityForAmounts(_sqrtPriceAX96, _sqrtPriceBX96, uint128(_amount0), uint128(_amount1));
 
-        Currency currency1 = Currency.wrap(addresses.currency1);
-        Currency currency0 = Currency.wrap(addresses.currency0);
+        params[0] = abi.encode(key, minTick, maxTick, liquidity, _amount0, _amount1, 0xdead, bytes(""));
 
-        params[1] = abi.encode(currency0, currency1); // add another param for ETH liquidity positions
-        params[2] = abi.encode(address(0), owner()); // only for ETH liquidity positions
+        params[1] = abi.encode(key.currency0, key.currency1);
 
         uint256 deadline = block.timestamp + 60;
 
-        uint256 valueToPass = currency0.isAddressZero() ? _amount0 : 0;
+        uint256 valueToPass = key.currency0.isAddressZero() ? _amount0 : 0;
 
         positionManager.modifyLiquidities{value: valueToPass}(abi.encode(actions, params), deadline);
 
         emit InitialLiquidityAdded(_owner, _amount0, _amount1);
+    }
+
+    function getPoolKey(address _owner) external view returns (PoolKey memory) {
+        return poolKeys[_owner];
     }
 }
