@@ -25,17 +25,17 @@ contract FundRaisingTokenTest is Test {
     }
 
     function testConstructorRevertsOnZeroTreasuryAddress() public {
-        vm.expectRevert(bytes("Zero address"));
+        vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
         new FundRaisingToken("FundRaisingToken", "FRT", lpManager, address(0), donationAddress, 1e24);
     }
 
     function testConstructorRevertsOnZeroDonationAddress() public {
-        vm.expectRevert(bytes("Zero address"));
+        vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
         new FundRaisingToken("FundRaisingToken", "FRT", lpManager, treasuryAddress, address(0), 1e24);
     }
 
     function testConstructorRevertsOnZeroTotalSupplyValue() public {
-        vm.expectRevert(bytes("Zero amount"));
+        vm.expectRevert(FundRaisingToken.ZeroAmount.selector);
         new FundRaisingToken("FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, 0);
     }
 
@@ -65,19 +65,19 @@ contract FundRaisingTokenTest is Test {
         assertEq(fundRaisingToken.totalSupply(), 5e24);
     }
 
-    function testOwnerIsDeployer() public view {
+    function testOwnerIsLPManager() public view {
         assertEq(fundRaisingToken.owner(), lpManager);
     }
 
     function testBurnRevertsOnZeroAmount() public {
         vm.prank(treasuryAddress);
-        vm.expectRevert(bytes("Zero amount"));
+        vm.expectRevert(FundRaisingToken.ZeroAmount.selector);
         fundRaisingToken.burn(0);
     }
 
     function testBurnRevertsIfNotCalledByTreasury() public {
         vm.prank(address(0x4));
-        vm.expectRevert(bytes("Only treasury"));
+        vm.expectRevert(FundRaisingToken.OnlyTreasury.selector);
         fundRaisingToken.burn(1e18);
     }
 

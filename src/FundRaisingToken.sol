@@ -6,6 +6,14 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract FundRaisingToken is ERC20, Ownable {
     /**
+     * Errors
+     */
+    error ZeroAddress();
+    error ZeroAmount();
+    error OnlyTreasury();
+    error TransferBlocked();
+
+    /**
      * State Variables
      */
     address public immutable lpManager; // The address of the liquidity pool manager
@@ -29,17 +37,17 @@ contract FundRaisingToken is ERC20, Ownable {
      * Modifiers
      */
     modifier nonZeroAddress(address _address) {
-        require(_address != address(0), "Zero address");
+        if (_address == address(0)) revert ZeroAddress();
         _;
     }
 
     modifier nonZeroAmount(uint256 _amount) {
-        require(_amount > 0, "Zero amount");
+        if (_amount == 0) revert ZeroAmount();
         _;
     }
 
     modifier onlyTreasury(address _address) {
-        require(_address == treasuryAddress, "Only treasury");
+        if (_address != treasuryAddress) revert OnlyTreasury();
         _;
     }
 
@@ -98,9 +106,8 @@ contract FundRaisingToken is ERC20, Ownable {
         }
         // Block transfers if transfer is blocked
         if (isTransferBlocked(to, amount) || isTransferBlocked(from, amount)) {
-            revert("Transfer blocked");
+            revert TransferBlocked();
         }
-        require(!isTransferBlocked(from, amount), "transfer not allowed");
         // Exempt system addresses
         if (
             from == lpManager || to == lpManager || from == donationAddress || to == donationAddress
