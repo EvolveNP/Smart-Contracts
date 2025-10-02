@@ -13,8 +13,14 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
+     * Errors
+     */
+    error OnlyFactory();
+    error OnlyRegistry();
+    /**
      * State Variables
      */
+
     address public immutable donationAddress; // The address of the donation wallet
     IFundraisingToken public fundraisingToken; // The fundraising token
     address public immutable factoryAddress; // The address of the factory contract
@@ -34,18 +40,13 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
      * Modifiers
      */
-    modifier nonZeroAddress(address _address) {
-        require(_address != address(0), "Zero address");
-        _;
-    }
-
     modifier onlyFactory() {
-        require(msg.sender == factoryAddress, "Only factory");
+        if (msg.sender != factoryAddress) revert OnlyFactory();
         _;
     }
 
     modifier onlyRegistry() {
-        require(msg.sender == registryAddress, "Only registry");
+        if (msg.sender != registryAddress) revert OnlyRegistry();
         _;
     }
 

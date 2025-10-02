@@ -13,12 +13,24 @@ import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.s
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 
 abstract contract Swap {
-    UniversalRouter public immutable router;
-    IPoolManager public immutable poolManager;
-    IPermit2 public immutable permit2;
-    IPositionManager public immutable positionManager;
+    UniversalRouter public immutable router; // The address of the uniswap universal router
+    IPoolManager public immutable poolManager; // The address of the uniswap v4 pool manager
+    IPermit2 public immutable permit2; // The address of the uniswap permit2 contract
+    IPositionManager public immutable positionManager; // The address of the uniswap v4 position manager
 
-    constructor(address _router, address _poolManager, address _permit2, address _positionManager) {
+    error ZeroAddress();
+
+    modifier nonZeroAddress(address _address) {
+        if (_address == address(0)) revert ZeroAddress();
+        _;
+    }
+
+    constructor(address _router, address _poolManager, address _permit2, address _positionManager)
+        nonZeroAddress(_router)
+        nonZeroAddress(_poolManager)
+        nonZeroAddress(_permit2)
+        nonZeroAddress(_positionManager)
+    {
         router = UniversalRouter(payable(_router));
         poolManager = IPoolManager(_poolManager);
         permit2 = IPermit2(_permit2);
