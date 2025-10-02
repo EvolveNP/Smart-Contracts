@@ -112,8 +112,8 @@ contract Factory is Ownable {
             _tokenName,
             _tokenSymbol,
             owner(),
-            address(donationWallet),
             address(treasuryWallet),
+            address(donationWallet),
             address(this),
             totalSupply
         );
@@ -127,8 +127,8 @@ contract Factory is Ownable {
 
         fundraisingAddresses[_owner] = FundRaisingAddresses(
             address(fundraisingToken),
-            address(donationWallet),
             address(treasuryWallet),
+            address(donationWallet),
             address(0),
             _owner,
             address(0),

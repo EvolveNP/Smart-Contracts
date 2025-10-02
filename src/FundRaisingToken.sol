@@ -2,10 +2,8 @@
 pragma solidity 0.8.26;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {console} from "forge-std/console.sol";
 
-contract FundRaisingToken is ERC20, Ownable {
+contract FundRaisingToken is ERC20 {
     /**
      * Errors
      */
@@ -33,7 +31,7 @@ contract FundRaisingToken is ERC20, Ownable {
     uint256 internal constant blocksToHold = 10;
     uint256 internal constant timeToHold = 1 hours;
     uint256 internal launchBlock; // The block number when the token was launched
-    address internal immutable factoryAddress; // The address of the factory contract
+    address public immutable factoryAddress; // The address of the factory contract
     mapping(address => uint256) internal lastBuyTimestamp; // The last buy timestamp for each address
 
     /**
@@ -83,7 +81,7 @@ contract FundRaisingToken is ERC20, Ownable {
         uint256 _totalSupply
     )
         ERC20(name, symbol)
-        Ownable(_lpManager)
+        nonZeroAddress(_lpManager)
         nonZeroAddress(_treasuryAddress)
         nonZeroAddress(_donationAddress)
         nonZeroAddress(_factoryAddress)
