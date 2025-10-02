@@ -34,6 +34,11 @@ contract FundRaisingToken is ERC20, Ownable {
     mapping(address => uint256) internal lastBuyTimestamp; // The last buy timestamp for each address
 
     /**
+     * Events
+     */
+    event LuanchBlockAndTimestampSet(uint256 launchBlock, uint256 luanchTimestamp);
+
+    /**
      * Modifiers
      */
     modifier nonZeroAddress(address _address) {
@@ -90,6 +95,14 @@ contract FundRaisingToken is ERC20, Ownable {
      */
     function burn(uint256 amount) external nonZeroAmount(amount) onlyTreasury(msg.sender) {
         _burn(msg.sender, amount);
+    }
+
+    function setLuanchBlockAndTimestamp() external {
+        if (launchBlock == 0) {
+            launchBlock = block.number;
+            luanchTimestamp = block.timestamp;
+        }
+        emit LuanchBlockAndTimestampSet(launchBlock, luanchTimestamp);
     }
 
     /**
