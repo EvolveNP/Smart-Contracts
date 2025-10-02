@@ -14,9 +14,10 @@ contract TreasuryWalletTest is Test {
     address public constant donationAddress = address(0x3);
     address public constant factoryAddress = address(0x4);
     address public constant registryAddress = address(0x5);
+    
 
     function setUp() public {
-        treasuryWallet = new TreasuryWallet(donationAddress, factoryAddress, registryAddress);
+        treasuryWallet = new TreasuryWallet(donationAddress, factoryAddress, registryAddress, address(0x1), address(0x2), address(0x3), address(0x4));
         fundRaisingToken = new FundRaisingToken(
             "FundRaisingToken", "FRT", address(0x1), address(treasuryWallet), donationAddress, 1e27
         );
@@ -27,17 +28,17 @@ contract TreasuryWalletTest is Test {
 
     function testConstructorRevertsOnZeroDonationAddress() public {
         vm.expectRevert(bytes("Zero address"));
-        new TreasuryWallet(address(0), factoryAddress, registryAddress);
+        new TreasuryWallet(address(0), factoryAddress, registryAddress, address(0x1), address(0x2), address(0x3), address(0x4));
     }
 
     function testConstructorRevertsOnZeroFactoryAddress() public {
         vm.expectRevert(bytes("Zero address"));
-        new TreasuryWallet(donationAddress, address(0), registryAddress);
+        new TreasuryWallet(donationAddress, address(0), registryAddress, address(0x1), address(0x2), address(0x3), address(0x4));
     }
 
     function testConstructorRevertsOnZeroRegistryAddress() public {
         vm.expectRevert(bytes("Zero address"));
-        new TreasuryWallet(donationAddress, address(0), registryAddress);
+        new TreasuryWallet(donationAddress, address(0), registryAddress, address(0x1), address(0x2), address(0x3), address(0x4));
     }
 
     function testConstructorSetsAllAddressesCorrectly() public view {

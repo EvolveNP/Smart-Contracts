@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 interface IFactory {
-    function getPoolKey() external view returns (PoolKey);
+    function getPoolKey() external view returns (PoolKey calldata);
     function addLiquidity(
         uint256 _amount0,
         uint256 _amount1,

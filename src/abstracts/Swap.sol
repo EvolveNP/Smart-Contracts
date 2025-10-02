@@ -10,6 +10,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 
 abstract contract Swap {
     UniversalRouter public immutable router;
@@ -24,8 +25,8 @@ abstract contract Swap {
         positionManager = IPositionManager(_positionManager);
     }
 
-    function swapExactInputSingle(PoolKey calldata key, uint128 amountIn, uint128 minAmountOut)
-        external
+    function swapExactInputSingle(PoolKey memory key, uint128 amountIn, uint128 minAmountOut)
+        internal
         returns (uint256 amountOut)
     {
         // Encode the Universal Router command
