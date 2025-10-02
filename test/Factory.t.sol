@@ -103,7 +103,6 @@ contract FactoryTest is Test {
         assertEq(token.donationAddress(), donationWallet);
         assertEq(token.factoryAddress(), address(factory));
 
-
         DonationWallet dw = DonationWallet(donationWallet);
         assertEq(dw.owner(), owner);
         assertEq(dw.factoryAddress(), address(factory));
@@ -111,8 +110,8 @@ contract FactoryTest is Test {
         assertEq(address(dw.poolManager()), poolManager);
         assertEq(address(dw.permit2()), permit2);
         assertEq(address(dw.positionManager()), positionManager);
- 
-       TreasuryWallet tw = TreasuryWallet(treasuryWallet);
+
+        TreasuryWallet tw = TreasuryWallet(treasuryWallet);
         assertEq(tw.donationAddress(), donationWallet);
         assertEq(tw.factoryAddress(), address(factory));
         assertEq(tw.registryAddress(), registryAddress);

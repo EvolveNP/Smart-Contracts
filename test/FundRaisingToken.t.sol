@@ -23,7 +23,7 @@ contract FundRaisingTokenTest is Test {
     }
 
     function testConstructorRevertsOnZeroLPManagerAddress() public {
-         vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
+        vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
         new FundRaisingToken(
             "FundRaisingToken", "FRT", address(0), treasuryAddress, donationAddress, factoryAddress, 1e24
         );
