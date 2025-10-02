@@ -81,6 +81,24 @@ contract FactoryTest is Test {
         vm.stopPrank();
     }
 
+    function testCreateFundraisingVaultRevertsOnZeroOwnerAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.createFundraisingVault("TokenName", "TKN", address(0));
+        vm.stopPrank();
+    }
+
+    function testCreateFundraisingVaultRevertsIfVaultAlreadyExists() public {
+        vm.prank(owner);
+        factory.createFundraisingVault("TokenName", "TKN", owner);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        vm.expectRevert(Factory.VaultAlreadyExists.selector);
+        factory.createFundraisingVault("TokenName", "TKN", owner);
+        vm.stopPrank();
+    }
+
     function testCreateFundraisingVault() public {
         vm.prank(owner);
         factory.createFundraisingVault("TokenName", "TKN", owner);

@@ -21,6 +21,7 @@ contract Factory is Ownable {
      * Errors
      */
     error ZeroAddress();
+    error VaultAlreadyExists();
 
     struct FundRaisingAddresses {
         address fundraisingToken; // The address of the fundraising token
@@ -96,8 +97,10 @@ contract Factory is Ownable {
      */
     function createFundraisingVault(string calldata _tokenName, string calldata _tokenSymbol, address _owner)
         external
+        nonZeroAddress(_owner)
         onlyOwner
     {
+        if (fundraisingAddresses[_owner].fundraisingToken != address(0)) revert VaultAlreadyExists();
         // deploy donation wallet
         DonationWallet donationWallet =
             new DonationWallet(address(this), _owner, router, poolManager, permit2, positionManager);
