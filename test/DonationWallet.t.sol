@@ -49,7 +49,7 @@ contract DonationWalletTest is Test {
         new DonationWallet(factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, address(0));
     }
 
-    function testConstructorSetsStateVariables() public {
+    function testConstructorSetsStateVariables() public view {
         assertEq(donationWallet.factoryAddress(), factoryAddress);
         assertEq(donationWallet.owner(), nonProfitOrgAddress);
         assertEq(address(donationWallet.router()), router);

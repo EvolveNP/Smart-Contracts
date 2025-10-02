@@ -17,6 +17,11 @@ import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmo
 contract Factory is Ownable {
     using LiquidityAmounts for uint160;
 
+    /**
+     * Errors
+     */
+    error ZeroAddress();
+
     struct FundRaisingAddresses {
         address fundraisingToken; // The address of the fundraising token
         address treasuryWallet; // the address of the treasury wallet
@@ -27,20 +32,20 @@ contract Factory is Ownable {
         address currency1; // address of currency1 in the lp
     }
 
-    uint256 internal constant totalSupply = 1e9; // the total supply of fundraising token
-    address internal immutable registryAddress; // The address of chainlink automation registry address
+    uint256 public constant totalSupply = 1e27; // the total supply of fundraising token
+    address public immutable registryAddress; // The address of chainlink automation registry address
     mapping(address => FundRaisingAddresses) public fundraisingAddresses; // non profit org wallet address => FundRaisingAddresses
 
     // uniswap constants
     mapping(address => PoolKey) public poolKeys; // lp address => pool key:  store pool keys for easy access
-    address internal immutable router; // The address of the uniswap universal router
-    address internal immutable permit2; // The address of the uniswap permit2 contract
-    uint24 internal constant defaultFee = 3000; // default fee tier for the pool
-    int24 internal constant defaultTickSpacing = 60; // default tick spacing for the pool
-    int24 internal constant maxTick = 120; // max tick for the pool
-    int24 internal constant minTick = -120; // min tick for the
-    address internal immutable poolManager; // The address of the uniswap v4 pool manager
-    address internal immutable positionManager; // The address of the uniswap v4 position manager
+    address public immutable router; // The address of the uniswap universal router
+    address public immutable permit2; // The address of the uniswap permit2 contract
+    uint24 public constant defaultFee = 3000; // default fee tier for the pool
+    int24 public constant defaultTickSpacing = 60; // default tick spacing for the pool
+    int24 public constant maxTick = 120; // max tick for the pool
+    int24 public constant minTick = -120; // min tick for the
+    address public immutable poolManager; // The address of the uniswap v4 pool manager
+    address public immutable positionManager; // The address of the uniswap v4 position manager
 
     event FundraisingVaultCreated(
         address fundraisingToken, address treasuryWallet, address donationWallet, address owner
@@ -49,13 +54,17 @@ contract Factory is Ownable {
     event InitialLiquidityAdded(address owner, uint256 amount0, uint256 amount1);
 
     modifier nonZeroAddress(address _address) {
-        require(_address != address(0), "Zero address");
+        if (_address == address(0)) revert ZeroAddress();
         _;
     }
 
     /**
      *
      * @param _registryAddress The address of chainlink automation registry address
+     * @param _poolManager The address of the uniswap v4 pool manager
+     * @param _positionManager The address of the uniswap v4 position manager
+     * @param _router The address of the uniswap universal router
+     * @param _permit2 The address of the uniswap permit2 contract
      */
     constructor(
         address _registryAddress,
@@ -63,7 +72,14 @@ contract Factory is Ownable {
         address _positionManager,
         address _router,
         address _permit2
-    ) Ownable(msg.sender) nonZeroAddress(_registryAddress) {
+    )
+        Ownable(msg.sender)
+        nonZeroAddress(_registryAddress)
+        nonZeroAddress(_poolManager)
+        nonZeroAddress(_positionManager)
+        nonZeroAddress(_router)
+        nonZeroAddress(_permit2)
+    {
         registryAddress = _registryAddress;
         poolManager = _poolManager;
         positionManager = _positionManager;
