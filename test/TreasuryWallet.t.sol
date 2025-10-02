@@ -54,6 +54,7 @@ contract TreasuryWalletTest is Test {
             donationAddress, factoryAddress, registryAddress, address(0), poolManager, permit2, positionManager
         );
     }
+
     function testConstructorRevertsOnZeroPoolManagerAddress() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
         new TreasuryWallet(
@@ -70,9 +71,7 @@ contract TreasuryWalletTest is Test {
 
     function testConstructorRevertsOnZeroPositionManagerAddress() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
-        new TreasuryWallet(
-            donationAddress, factoryAddress, registryAddress, router, poolManager, permit2, address(0)
-        );
+        new TreasuryWallet(donationAddress, factoryAddress, registryAddress, router, poolManager, permit2, address(0));
     }
 
     function testConstructorSetsAllAddressesCorrectly() public view {

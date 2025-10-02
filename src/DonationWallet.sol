@@ -35,6 +35,10 @@ contract DonationWallet is Swap {
      *
      * @param _factoryAddress The address of the factory contract
      * @param _owner The wallet address of non profit organization that receives the donation
+     * @param _router The address of the uniswap universal router
+     * @param _poolManager The address of the uniswap v4 pool manager
+     * @param _permit2 The address of the uniswap permit2 contract
+     * @param _positionManager The address of the uniswap v4 position manager
      */
     constructor(
         address _factoryAddress,
@@ -43,7 +47,7 @@ contract DonationWallet is Swap {
         address _poolManager,
         address _permit2,
         address _positionManager
-    ) Swap(_router, _poolManager, _permit2, _positionManager) {
+    ) nonZeroAddress(_factoryAddress) nonZeroAddress(_owner) Swap(_router, _poolManager, _permit2, _positionManager) {
         owner = _owner;
         factoryAddress = _factoryAddress;
     }
