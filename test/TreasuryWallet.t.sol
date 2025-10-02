@@ -35,22 +35,43 @@ contract TreasuryWalletTest is Test {
 
     function testConstructorRevertsOnZeroDonationAddress() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
-        new TreasuryWallet(
-            address(0), factoryAddress, registryAddress, address(0x1), address(0x2), address(0x3), address(0x4)
-        );
+        new TreasuryWallet(address(0), factoryAddress, registryAddress, router, poolManager, permit2, positionManager);
     }
 
     function testConstructorRevertsOnZeroFactoryAddress() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
-        new TreasuryWallet(
-            donationAddress, address(0), registryAddress, address(0x1), address(0x2), address(0x3), address(0x4)
-        );
+        new TreasuryWallet(donationAddress, address(0), registryAddress, router, poolManager, permit2, positionManager);
     }
 
     function testConstructorRevertsOnZeroRegistryAddress() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
+        new TreasuryWallet(donationAddress, address(0), registryAddress, router, poolManager, permit2, positionManager);
+    }
+
+    function testConstructorRevertsOnZeroRouterAddress() public {
+        vm.expectRevert(Swap.ZeroAddress.selector);
         new TreasuryWallet(
-            donationAddress, address(0), registryAddress, address(0x1), address(0x2), address(0x3), address(0x4)
+            donationAddress, factoryAddress, registryAddress, address(0), poolManager, permit2, positionManager
+        );
+    }
+    function testConstructorRevertsOnZeroPoolManagerAddress() public {
+        vm.expectRevert(Swap.ZeroAddress.selector);
+        new TreasuryWallet(
+            donationAddress, factoryAddress, registryAddress, router, address(0), permit2, positionManager
+        );
+    }
+
+    function testConstructorRevertsOnZeroPermit2Address() public {
+        vm.expectRevert(Swap.ZeroAddress.selector);
+        new TreasuryWallet(
+            donationAddress, factoryAddress, registryAddress, router, poolManager, address(0), positionManager
+        );
+    }
+
+    function testConstructorRevertsOnZeroPositionManagerAddress() public {
+        vm.expectRevert(Swap.ZeroAddress.selector);
+        new TreasuryWallet(
+            donationAddress, factoryAddress, registryAddress, router, poolManager, permit2, address(0)
         );
     }
 
@@ -58,6 +79,10 @@ contract TreasuryWalletTest is Test {
         assertEq(treasuryWallet.donationAddress(), donationAddress);
         assertEq(treasuryWallet.factoryAddress(), factoryAddress);
         assertEq(treasuryWallet.registryAddress(), registryAddress);
+        assertEq(address(treasuryWallet.router()), router);
+        assertEq(address(treasuryWallet.poolManager()), poolManager);
+        assertEq(address(treasuryWallet.permit2()), permit2);
+        assertEq(address(treasuryWallet.positionManager()), positionManager);
     }
 
     function testSetFundRaisingTokenRevertsIfNotFactory() public {
