@@ -16,11 +16,26 @@ contract FactoryTest is Test {
     address public constant positionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
     address public constant router = 0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af;
     address public constant permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    address public constant owner = address(0x6);
+    address public constant owner = 0xB3FFde53f0076295f2C183f13b4A07dE288Df61D;
+    address public constant nonProfitOrg = address(0x7);
+    address public fundraisingToken;
+    address public usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    uint256 mainnetFork;
+    string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
+    uint160 public constant sqrtPriceX96 = 79228162514264337593543950336; // 1:1 price ratio
 
     function setUp() public {
+  
+        mainnetFork = vm.createFork(MAINNET_RPC_URL);
+        vm.selectFork(mainnetFork);
         vm.prank(owner);
         factory = new Factory(registryAddress, poolManager, positionManager, router, permit2);
+        vm.prank(owner);
+        factory.createFundraisingVault("FundraisingToken", "FTN", nonProfitOrg);
+      
+        (fundraisingToken,,,,,,) = factory.fundraisingAddresses(nonProfitOrg);
+          console.log(fundraisingToken, 'fundraisingToken address');
+        
         vm.stopPrank();
     }
 
@@ -137,6 +152,31 @@ contract FactoryTest is Test {
         assertEq(address(tw.poolManager()), poolManager);
         assertEq(address(tw.permit2()), permit2);
         assertEq(address(tw.positionManager()), positionManager);
+        vm.stopPrank();
+    }
+
+    function testCreatePoolOnlyOwnerCanCreatePool() public {
+        vm.prank(owner);
+        factory.createFundraisingVault("TokenName", "TKN", owner);
+        (address _token,,,,, address pool,) = factory.fundraisingAddresses(owner);
+        assert(pool == address(0));
+
+        FundRaisingToken token = FundRaisingToken(_token);
+
+        vm.prank(address(0x10));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
+        factory.createPool(_token, address(0x20), 3000, owner);
+        vm.stopPrank();
+    }
+
+    function testCreatePoolOwnerCanCreateAPoolOnUniswap() public {
+        
+        vm.prank(owner);
+       
+        console.log(fundraisingToken, 'fundraisingToken address');
+        factory.createPool(usdc, fundraisingToken, sqrtPriceX96, owner);
+        (, , , , , , address _pool) = factory.fundraisingAddresses(owner);
+    
         vm.stopPrank();
     }
 }

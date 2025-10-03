@@ -51,7 +51,7 @@ contract Factory is Ownable {
     event FundraisingVaultCreated(
         address fundraisingToken, address treasuryWallet, address donationWallet, address owner
     );
-    event LiquidityPoolCreated(address lpAddress, address owner);
+    event LiquidityPoolCreated(address currency0, address currency1, address owner);
     event InitialLiquidityAdded(address owner, uint256 amount0, uint256 amount1);
 
     modifier nonZeroAddress(address _address) {
@@ -180,7 +180,7 @@ contract Factory is Ownable {
         // store pool key for easy access
         poolKeys[_owner] = poolKey;
 
-        emit LiquidityPoolCreated(address(poolManager), _owner);
+        emit LiquidityPoolCreated(_currency0, _currency0, _owner);
     }
 
     /**
