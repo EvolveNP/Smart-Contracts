@@ -2,9 +2,17 @@
 pragma solidity 0.8.26;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract FundRaisingToken is ERC20, Ownable {
+contract FundRaisingToken is ERC20 {
+    /**
+     * Errors
+     */
+    error ZeroAddress();
+    error ZeroAmount();
+    error OnlyTreasury();
+    error TransferBlocked();
+    error OnlyFactory();
+
     /**
      * State Variables
      */
@@ -21,25 +29,36 @@ contract FundRaisingToken is ERC20, Ownable {
     uint256 internal constant perWalletCoolDownPeriod = 1 minutes;
     uint256 internal constant maxBuySize = 333e13; // 0.333% of total supply
     uint256 internal constant blocksToHold = 10;
+    uint256 internal constant timeToHold = 1 hours;
     uint256 internal launchBlock; // The block number when the token was launched
-
+    address public immutable factoryAddress; // The address of the factory contract
     mapping(address => uint256) internal lastBuyTimestamp; // The last buy timestamp for each address
+
+    /**
+     * Events
+     */
+    event LuanchBlockAndTimestampSet(uint256 launchBlock, uint256 luanchTimestamp);
 
     /**
      * Modifiers
      */
     modifier nonZeroAddress(address _address) {
-        require(_address != address(0), "Zero address");
+        if (_address == address(0)) revert ZeroAddress();
         _;
     }
 
     modifier nonZeroAmount(uint256 _amount) {
-        require(_amount > 0, "Zero amount");
+        if (_amount == 0) revert ZeroAmount();
         _;
     }
 
     modifier onlyTreasury(address _address) {
-        require(_address == treasuryAddress, "Only treasury");
+        if (_address != treasuryAddress) revert OnlyTreasury();
+        _;
+    }
+
+    modifier onlyFactory() {
+        if (msg.sender != factoryAddress) revert OnlyFactory();
         _;
     }
 
@@ -58,18 +77,20 @@ contract FundRaisingToken is ERC20, Ownable {
         address _lpManager,
         address _treasuryAddress,
         address _donationAddress,
+        address _factoryAddress,
         uint256 _totalSupply
     )
         ERC20(name, symbol)
-        Ownable(_lpManager)
         nonZeroAddress(_lpManager)
         nonZeroAddress(_treasuryAddress)
         nonZeroAddress(_donationAddress)
+        nonZeroAddress(_factoryAddress)
         nonZeroAmount(_totalSupply)
     {
         lpManager = _lpManager;
         treasuryAddress = _treasuryAddress;
         donationAddress = _donationAddress;
+        factoryAddress = _factoryAddress;
 
         // mint 75% to LP manager 100% = 1e18
         _mint(lpManager, (_totalSupply * 75e16) / 1e18);
@@ -85,6 +106,14 @@ contract FundRaisingToken is ERC20, Ownable {
         _burn(msg.sender, amount);
     }
 
+    function setLuanchBlockAndTimestamp() external onlyFactory {
+        if (launchBlock == 0) {
+            launchBlock = block.number;
+            luanchTimestamp = block.timestamp;
+        }
+        emit LuanchBlockAndTimestampSet(launchBlock, luanchTimestamp);
+    }
+
     /**
      *
      * See {ERC20-_update}
@@ -97,11 +126,7 @@ contract FundRaisingToken is ERC20, Ownable {
             super._update(from, to, amount);
             return;
         }
-        // Block transfers if transfer is blocked
-        if (isTransferBlocked(to, amount) || isTransferBlocked(from, amount)) {
-            revert("Transfer blocked");
-        }
-        require(!isTransferBlocked(from, amount), "transfer not allowed");
+
         // Exempt system addresses
         if (
             from == lpManager || to == lpManager || from == donationAddress || to == donationAddress
@@ -136,32 +161,35 @@ contract FundRaisingToken is ERC20, Ownable {
     }
 
     /**
+     * TODO: Use this in uniswap hook
      * @notice Checks if a transfer is blocked based on launch protection, cooldown period, and max buy size.
      * @param _account The address of the account to check
      * @param _amount The amount to be transferred
      * @return True if the transfer is blocked, false otherwise
      */
-    function isTransferBlocked(address _account, uint256 _amount) internal view returns (bool) {
+    function isTransferBlocked(address _account, uint256 _amount) internal returns (bool, bool) {
         // Block transfers during launch protection
-        if (block.number < launchBlock + blocksToHold || block.timestamp < luanchTimestamp + 1 hours) {
-            return true;
+        if (launchBlock == 0 && luanchTimestamp == 0) return (false, false); // Not launched yet
+        //Hold for a specific block after launch
+        if (block.number < launchBlock + blocksToHold) return (true, false);
+
+        if (block.timestamp < luanchTimestamp + timeToHold) {
+            // Block transfers if within time to hold after launch
+            uint256 lastBuy = lastBuyTimestamp[_account];
+            lastBuyTimestamp[_account] = block.timestamp;
+
+            uint256 _maxBuySize = totalSupply() * maxBuySize / 1e18;
+
+            if (_amount > _maxBuySize) return (true, false);
+
+            // Block transfers if within cooldown
+            if (lastBuy != 0 && block.timestamp < lastBuy + perWalletCoolDownPeriod) return (true, false);
+            return (false, true);
         }
+        return (false, false);
+    }
 
-        uint256 lastBuy = lastBuyTimestamp[_account];
-
-        // Block transfers if within cooldown
-        if (block.timestamp < lastBuy + perWalletCoolDownPeriod) {
-            return true;
-        }
-
-        uint256 _maxBuySize = totalSupply() * maxBuySize / 1e18;
-
-        // Block transfers above max buy size
-        if (_amount > _maxBuySize) {
-            return true;
-        }
-
-        // Otherwise transfer is allowed
-        return false;
+    function updateLastBuyTimestamp(address _account) internal {
+        lastBuyTimestamp[_account] = block.timestamp;
     }
 }

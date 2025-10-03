@@ -14,6 +14,7 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Swap} from "./abstracts/Swap.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
 contract DonationWallet is Swap {
     using StateLibrary for IPoolManager;
@@ -34,6 +35,10 @@ contract DonationWallet is Swap {
      *
      * @param _factoryAddress The address of the factory contract
      * @param _owner The wallet address of non profit organization that receives the donation
+     * @param _router The address of the uniswap universal router
+     * @param _poolManager The address of the uniswap v4 pool manager
+     * @param _permit2 The address of the uniswap permit2 contract
+     * @param _positionManager The address of the uniswap v4 position manager
      */
     constructor(
         address _factoryAddress,
@@ -42,7 +47,7 @@ contract DonationWallet is Swap {
         address _poolManager,
         address _permit2,
         address _positionManager
-    ) Swap(_router, _poolManager, _permit2, _positionManager) {
+    ) nonZeroAddress(_factoryAddress) nonZeroAddress(_owner) Swap(_router, _poolManager, _permit2, _positionManager) {
         owner = _owner;
         factoryAddress = _factoryAddress;
     }
@@ -56,12 +61,15 @@ contract DonationWallet is Swap {
 
         PoolKey memory key = IFactory(factoryAddress).getPoolKey();
 
-        uint256 amountOut = swapExactInputSingle(key, amountIn, 1);
+        uint256 amountOut = swapExactInputSingle(key, uint128(amountIn), 0);
 
         address currency0 = Currency.unwrap(key.currency0);
-        bool success = IERC20(currency0).transfer(owner, balance);
+
+        bool success = IERC20(currency0).transfer(owner, amountOut);
+
         require(success, "Transfer failed");
-        emit FundsTransferredToNonProfit(owner, balance);
+
+        emit FundsTransferredToNonProfit(owner, amountOut);
     }
 
     /**
