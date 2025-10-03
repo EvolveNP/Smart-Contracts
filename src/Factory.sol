@@ -13,6 +13,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmounts.sol";
+import {console} from "forge-std/console.sol";
 
 contract Factory is Ownable {
     using LiquidityAmounts for uint160;
@@ -22,6 +23,9 @@ contract Factory is Ownable {
      */
     error ZeroAddress();
     error VaultAlreadyExists();
+    error FundraisingVaultNotCreated();
+    error PoolAlreadyExists();
+    error InvalidPairToken();
 
     struct FundRaisingAddresses {
         address fundraisingToken; // The address of the fundraising token
@@ -152,9 +156,23 @@ contract Factory is Ownable {
         nonZeroAddress(_owner)
         onlyOwner
     {
+        FundRaisingAddresses storage addresses = fundraisingAddresses[_owner];
+        if (addresses.fundraisingToken == address(0) || addresses.treasuryWallet == address(0)) {
+            revert FundraisingVaultNotCreated();
+        }
+        if (addresses.currency0 != address(0)) revert PoolAlreadyExists();
+
+        if (_currency1 != addresses.fundraisingToken || _currency0 == addresses.fundraisingToken) {
+            revert InvalidPairToken();
+        }
         // wrap currencies
         Currency currency0 = Currency.wrap(_currency0);
         Currency currency1 = Currency.wrap(_currency1);
+
+        // ensure currency0 < currency1 by address value
+        if (currency0 > currency1) {
+            (currency0, currency1) = (currency1, currency0);
+        }
 
         PoolKey memory poolKey = PoolKey({
             currency0: currency0,
@@ -168,7 +186,6 @@ contract Factory is Ownable {
 
         _poolManager.initialize(poolKey, _sqrtPriceX96);
 
-        FundRaisingAddresses storage addresses = fundraisingAddresses[_owner];
         addresses.currency0 = _currency0;
         addresses.currency1 = _currency1;
 

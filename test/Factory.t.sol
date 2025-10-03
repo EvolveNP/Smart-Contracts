@@ -8,6 +8,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {DonationWallet} from "../src/DonationWallet.sol";
 import {TreasuryWallet} from "../src/TreasuryWallet.sol";
 import {FundRaisingToken} from "../src/FundRaisingToken.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 
 contract FactoryTest is Test {
     Factory public factory;
@@ -173,6 +174,47 @@ contract FactoryTest is Test {
         vm.stopPrank();
     }
 
+    function testCreatePoolCannotCreatePoolIfVaultNotCreated() public {
+        vm.prank(owner);
+        vm.expectRevert(Factory.FundraisingVaultNotCreated.selector);
+        factory.createPool(usdc, fundraisingTokenAddress, sqrtPriceX96, address(0x10));
+        vm.stopPrank();
+    }
+
+    function testCreatePoolCannotCreateSamePoolTwice() public {
+        vm.prank(owner);
+        factory.createPool(usdc, fundraisingTokenAddress, sqrtPriceX96, nonProfitOrg);
+        vm.prank(owner);
+        vm.expectRevert(Factory.PoolAlreadyExists.selector);
+        factory.createPool(usdc, fundraisingTokenAddress, sqrtPriceX96, nonProfitOrg);
+        vm.stopPrank();
+    }
+
+    function testCreatePoolCannotCreatePoolWithSameCurrency0AndCurrency1() public {
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IPoolManager.CurrenciesOutOfOrderOrEqual.selector, fundraisingTokenAddress, fundraisingTokenAddress
+            )
+        );
+        factory.createPool(fundraisingTokenAddress, fundraisingTokenAddress, sqrtPriceX96, nonProfitOrg);
+        vm.stopPrank();
+    }
+
+    function testCreatePoolCannotCreatePoolIfCurrency1IsNotSameAsFundraisingToken() public {
+        vm.prank(owner);
+        vm.expectRevert(Factory.InvalidPairToken.selector);
+        factory.createPool(fundraisingTokenAddress, address(0x1234), sqrtPriceX96, nonProfitOrg);
+        vm.stopPrank();
+    }
+
+    function testCreatePoolCannotCreatePoolIfCurrency0IsSameAsFundraisingToken() public {
+        vm.prank(owner);
+        vm.expectRevert(Factory.InvalidPairToken.selector);
+        factory.createPool(fundraisingTokenAddress, fundraisingTokenAddress, sqrtPriceX96, nonProfitOrg);
+        vm.stopPrank();
+    }
+
     function testCreatePoolOnlyOwnerCanCreatePool() public {
         vm.prank(owner);
         factory.createFundraisingVault("TokenName", "TKN", owner);
@@ -186,8 +228,8 @@ contract FactoryTest is Test {
     function testCreatePoolOwnerCanCreateAPoolOnUniswap() public {
         vm.prank(owner);
         vm.expectEmit(true, true, true, false);
-        emit Factory.LiquidityPoolCreated(usdc, fundraisingTokenAddress, owner);
-        factory.createPool(usdc, fundraisingTokenAddress, sqrtPriceX96, owner);
+        emit Factory.LiquidityPoolCreated(usdc, fundraisingTokenAddress, nonProfitOrg);
+        factory.createPool(usdc, fundraisingTokenAddress, sqrtPriceX96, nonProfitOrg);
         vm.stopPrank();
     }
 }
