@@ -18,24 +18,21 @@ contract FactoryTest is Test {
     address public constant permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant owner = 0xB3FFde53f0076295f2C183f13b4A07dE288Df61D;
     address public constant nonProfitOrg = address(0x7);
-    address public fundraisingToken;
+    address public fundraisingTokenAddress;
     address public usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     uint256 mainnetFork;
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
     uint160 public constant sqrtPriceX96 = 79228162514264337593543950336; // 1:1 price ratio
 
     function setUp() public {
-  
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
         vm.selectFork(mainnetFork);
         vm.prank(owner);
         factory = new Factory(registryAddress, poolManager, positionManager, router, permit2);
         vm.prank(owner);
         factory.createFundraisingVault("FundraisingToken", "FTN", nonProfitOrg);
-      
-        (fundraisingToken,,,,,,) = factory.fundraisingAddresses(nonProfitOrg);
-          console.log(fundraisingToken, 'fundraisingToken address');
-        
+
+        (fundraisingTokenAddress,,,,,) = factory.fundraisingAddresses(nonProfitOrg);
         vm.stopPrank();
     }
 
@@ -117,7 +114,7 @@ contract FactoryTest is Test {
     function testCreateFundraisingVault() public {
         vm.prank(owner);
         factory.createFundraisingVault("TokenName", "TKN", owner);
-        (address fundraisingToken, address treasuryWallet, address donationWallet,,,,) =
+        (address fundraisingToken, address treasuryWallet, address donationWallet,,,) =
             factory.fundraisingAddresses(owner);
         assert(fundraisingToken != address(0));
         assert(donationWallet != address(0));
@@ -155,14 +152,31 @@ contract FactoryTest is Test {
         vm.stopPrank();
     }
 
+    function testCreateCannotCreatePoolWithZeroCurrency0() public {
+        vm.prank(owner);
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.createPool(address(0), fundraisingTokenAddress, sqrtPriceX96, owner);
+        vm.stopPrank();
+    }
+
+    function testCreateCannotCreatePoolWithZeroCurrency1() public {
+        vm.prank(owner);
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.createPool(usdc, address(0), sqrtPriceX96, owner);
+        vm.stopPrank();
+    }
+
+    function testCreateCannotCreatePoolWithZeroOwner() public {
+        vm.prank(owner);
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.createPool(usdc, fundraisingTokenAddress, sqrtPriceX96, address(0));
+        vm.stopPrank();
+    }
+
     function testCreatePoolOnlyOwnerCanCreatePool() public {
         vm.prank(owner);
         factory.createFundraisingVault("TokenName", "TKN", owner);
-        (address _token,,,,, address pool,) = factory.fundraisingAddresses(owner);
-        assert(pool == address(0));
-
-        FundRaisingToken token = FundRaisingToken(_token);
-
+        (address _token,,,,,) = factory.fundraisingAddresses(owner);
         vm.prank(address(0x10));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
         factory.createPool(_token, address(0x20), 3000, owner);
@@ -170,13 +184,10 @@ contract FactoryTest is Test {
     }
 
     function testCreatePoolOwnerCanCreateAPoolOnUniswap() public {
-        
         vm.prank(owner);
-       
-        console.log(fundraisingToken, 'fundraisingToken address');
-        factory.createPool(usdc, fundraisingToken, sqrtPriceX96, owner);
-        (, , , , , , address _pool) = factory.fundraisingAddresses(owner);
-    
+        vm.expectEmit(true, true, true, false);
+        emit Factory.LiquidityPoolCreated(usdc, fundraisingTokenAddress, owner);
+        factory.createPool(usdc, fundraisingTokenAddress, sqrtPriceX96, owner);
         vm.stopPrank();
     }
 }

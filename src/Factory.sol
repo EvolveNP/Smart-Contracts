@@ -27,7 +27,6 @@ contract Factory is Ownable {
         address fundraisingToken; // The address of the fundraising token
         address treasuryWallet; // the address of the treasury wallet
         address donationWallet; // the address of the donation wallet
-        address lpAddress; // address of the lp pool
         address owner; // the non profit org wallet address
         address currency0; // address of currency0 in the lp
         address currency1; // address of currency1 in the lp
@@ -129,13 +128,7 @@ contract Factory is Ownable {
         treasuryWallet.setFundraisingToken(address(fundraisingToken));
 
         fundraisingAddresses[_owner] = FundRaisingAddresses(
-            address(fundraisingToken),
-            address(treasuryWallet),
-            address(donationWallet),
-            address(0),
-            _owner,
-            address(0),
-            address(0)
+            address(fundraisingToken), address(treasuryWallet), address(donationWallet), _owner, address(0), address(0)
         );
 
         emit FundraisingVaultCreated(
@@ -154,6 +147,9 @@ contract Factory is Ownable {
      */
     function createPool(address _currency0, address _currency1, uint160 _sqrtPriceX96, address _owner)
         external
+        nonZeroAddress(_currency0)
+        nonZeroAddress(_currency1)
+        nonZeroAddress(_owner)
         onlyOwner
     {
         // wrap currencies
@@ -173,7 +169,6 @@ contract Factory is Ownable {
         _poolManager.initialize(poolKey, _sqrtPriceX96);
 
         FundRaisingAddresses storage addresses = fundraisingAddresses[_owner];
-        addresses.lpAddress = address(poolManager);
         addresses.currency0 = _currency0;
         addresses.currency1 = _currency1;
 
