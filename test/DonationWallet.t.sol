@@ -57,4 +57,6 @@ contract DonationWalletTest is Test {
         assertEq(address(donationWallet.permit2()), permit2);
         assertEq(address(donationWallet.positionManager()), positionManager);
     }
+
+    function testSwapFundraisingToken() public view {}
 }
