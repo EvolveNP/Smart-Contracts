@@ -33,6 +33,7 @@ contract FundRaisingToken is ERC20 {
     uint256 internal launchBlock; // The block number when the token was launched
     address public immutable factoryAddress; // The address of the factory contract
     mapping(address => uint256) internal lastBuyTimestamp; // The last buy timestamp for each address
+    uint8 _decimals;
 
     /**
      * Events
@@ -74,6 +75,7 @@ contract FundRaisingToken is ERC20 {
     constructor(
         string memory name,
         string memory symbol,
+        uint8 decimals_,
         address _lpManager,
         address _treasuryAddress,
         address _donationAddress,
@@ -91,7 +93,7 @@ contract FundRaisingToken is ERC20 {
         treasuryAddress = _treasuryAddress;
         donationAddress = _donationAddress;
         factoryAddress = _factoryAddress;
-
+        _decimals = decimals_;
         // mint 75% to LP manager 100% = 1e18
         _mint(lpManager, (_totalSupply * 75e16) / 1e18);
         // mint 25% to treasury wallet
@@ -114,6 +116,10 @@ contract FundRaisingToken is ERC20 {
         emit LuanchBlockAndTimestampSet(launchBlock, luanchTimestamp);
     }
 
+    function decimals() public view virtual override returns (uint8) {
+        return _decimals;
+    }
+
     /**
      *
      * See {ERC20-_update}
@@ -129,7 +135,7 @@ contract FundRaisingToken is ERC20 {
 
         // Exempt system addresses
         if (
-            from == lpManager || to == lpManager || from == donationAddress || to == donationAddress
+            from == factoryAddress || to == factoryAddress || from == donationAddress || to == donationAddress
                 || from == treasuryAddress || to == treasuryAddress
         ) {
             super._update(from, to, amount);
