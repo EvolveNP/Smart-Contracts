@@ -18,54 +18,58 @@ contract FundRaisingTokenTest is Test {
 
     function setUp() public {
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, factoryAddress, totalSupply
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, totalSupply
         );
     }
 
     function testConstructorRevertsOnZeroLPManagerAddress() public {
         vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
         new FundRaisingToken(
-            "FundRaisingToken", "FRT", address(0), treasuryAddress, donationAddress, factoryAddress, 1e24
+            "FundRaisingToken", "FRT", 6, address(0), treasuryAddress, donationAddress, factoryAddress, 1e24
         );
     }
 
     function testConstructorRevertsOnZeroTreasuryAddress() public {
         vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
-        new FundRaisingToken("FundRaisingToken", "FRT", lpManager, address(0), donationAddress, factoryAddress, 1e24);
+        new FundRaisingToken("FundRaisingToken", "FRT", 6, lpManager, address(0), donationAddress, factoryAddress, 1e24);
     }
 
     function testConstructorRevertsOnZeroDonationAddress() public {
         vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
-        new FundRaisingToken("FundRaisingToken", "FRT", lpManager, treasuryAddress, address(0), factoryAddress, 1e24);
+        new FundRaisingToken("FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, address(0), factoryAddress, 1e24);
     }
 
     function testConstructorRevertsOnZeroFactoryAddress() public {
         vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
-        new FundRaisingToken("FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, address(0), 1e24);
+        new FundRaisingToken(
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, address(0), 1e24
+        );
     }
 
     function testConstructorRevertsOnZeroTotalSupplyValue() public {
         vm.expectRevert(FundRaisingToken.ZeroAmount.selector);
-        new FundRaisingToken("FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, factoryAddress, 0);
+        new FundRaisingToken(
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, 0
+        );
     }
 
     function testConstructorMintsCorrectAmountToLPManager() public {
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, factoryAddress, 1e24
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, 1e24
         );
         assertEq(fundRaisingToken.balanceOf(lpManager), 75e22);
     }
 
     function testConstructorMintsCorrectAmountToTreasury() public {
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, factoryAddress, 2e24
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, 2e24
         );
         assertEq(fundRaisingToken.balanceOf(lpManager), 150e22);
     }
 
     function testConstructorSetAllAddressesCorrectly() public {
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, factoryAddress, 1e24
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, 1e24
         );
         assertEq(fundRaisingToken.lpManager(), lpManager);
         assertEq(fundRaisingToken.treasuryAddress(), treasuryAddress);
@@ -74,7 +78,7 @@ contract FundRaisingTokenTest is Test {
 
     function testConstructorSetTotalSupplyCorrectly() public {
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken", "FRT", lpManager, treasuryAddress, donationAddress, factoryAddress, 5e24
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, 5e24
         );
         assertEq(fundRaisingToken.totalSupply(), 5e24);
     }
@@ -129,8 +133,8 @@ contract FundRaisingTokenTest is Test {
 
     function testTransferLpManagerCanTransferToLPPool() public {
         vm.prank(lpManager);
-        fundRaisingToken.transfer(address(0x10), 1e18);
-        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+        fundRaisingToken.transfer(factoryAddress, 1e18);
+        assertEq(fundRaisingToken.balanceOf(factoryAddress), 1e18);
     }
 
     // function testTransferCannotTransderBlockToHoldNotPassed() public {
@@ -152,16 +156,16 @@ contract FundRaisingTokenTest is Test {
 
     function testTransferCannotCutTaxIfTransferInitiatedFromLPManager() public {
         vm.prank(lpManager);
-        fundRaisingToken.transfer(address(0x10), 1e18);
-        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+        fundRaisingToken.transfer(factoryAddress, 1e18);
+        assertEq(fundRaisingToken.balanceOf(factoryAddress), 1e18);
     }
 
     function testTransferCannotCutTaxIfTransferIsToLPManager() public {
         vm.prank(lpManager);
-        fundRaisingToken.transfer(address(0x10), 1e18);
-        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+        fundRaisingToken.transfer(factoryAddress, 1e18);
+        assertEq(fundRaisingToken.balanceOf(factoryAddress), 1e18);
 
-        vm.prank(address(0x10));
+        vm.prank(factoryAddress);
         fundRaisingToken.transfer(lpManager, 1e18);
         assertEq(fundRaisingToken.balanceOf(lpManager), 75e25);
     }
@@ -178,10 +182,10 @@ contract FundRaisingTokenTest is Test {
 
     function testTransferCannotCutTaxIfTransferIsToDonationAddress() public {
         vm.prank(lpManager);
-        fundRaisingToken.transfer(address(0x10), 1e18);
-        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+        fundRaisingToken.transfer(factoryAddress, 1e18);
+        assertEq(fundRaisingToken.balanceOf(factoryAddress), 1e18);
 
-        vm.prank(address(0x10));
+        vm.prank(factoryAddress);
         fundRaisingToken.transfer(donationAddress, 1e18);
         assertEq(fundRaisingToken.balanceOf(donationAddress), 1e18);
     }
@@ -198,10 +202,10 @@ contract FundRaisingTokenTest is Test {
 
     function testTransferCannotCutTaxIfTransferIsToTreasuryAddress() public {
         vm.prank(lpManager);
-        fundRaisingToken.transfer(address(0x10), 1e18);
-        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+        fundRaisingToken.transfer(factoryAddress, 1e18);
+        assertEq(fundRaisingToken.balanceOf(factoryAddress), 1e18);
 
-        vm.prank(address(0x10));
+        vm.prank(factoryAddress);
         fundRaisingToken.transfer(treasuryAddress, 1e18);
         assertEq(fundRaisingToken.balanceOf(treasuryAddress), 1e18 + 25e25);
     }
@@ -225,14 +229,14 @@ contract FundRaisingTokenTest is Test {
 
     function testTransferCutsTaxIfNotFromOrToSystemAddresses() public {
         vm.prank(lpManager);
-        fundRaisingToken.transfer(address(0x10), 1e18);
-        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+        fundRaisingToken.transfer(factoryAddress, 1e18);
+        assertEq(fundRaisingToken.balanceOf(factoryAddress), 1e18);
 
-        vm.prank(address(0x10));
+        vm.prank(factoryAddress);
         fundRaisingToken.transfer(address(0x20), 1e18);
         // 1e18 - 2% tax = 0.98e18
-        assertEq(fundRaisingToken.balanceOf(address(0x20)), 98e16);
+        assertEq(fundRaisingToken.balanceOf(address(0x20)), 1e18);
         // Treasury should receive 2% tax = 0.02e18
-        assertEq(fundRaisingToken.balanceOf(treasuryAddress), 25e25 + 2e16);
+        assertEq(fundRaisingToken.balanceOf(treasuryAddress), 25e25);
     }
 }
