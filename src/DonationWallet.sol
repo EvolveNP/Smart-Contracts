@@ -15,6 +15,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Swap} from "./abstracts/Swap.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {console} from "forge-std/Test.sol";
 
 contract DonationWallet is Swap {
     using StateLibrary for IPoolManager;
@@ -59,11 +60,12 @@ contract DonationWallet is Swap {
     function swapFundraisingToken() external {
         uint256 amountIn = fundraisingTokenAddress.balanceOf(address(this));
 
-        PoolKey memory key = IFactory(factoryAddress).getPoolKey();
-
-        uint256 amountOut = swapExactInputSingle(key, uint128(amountIn), 0);
+        PoolKey memory key = IFactory(factoryAddress).getPoolKey(owner);
 
         address currency0 = Currency.unwrap(key.currency0);
+        bool isCurrency0FundraisingToken = currency0 == address(fundraisingTokenAddress);
+
+        uint256 amountOut = swapExactInputSingle(key, uint128(amountIn), 0, isCurrency0FundraisingToken);
 
         bool success = IERC20(currency0).transfer(owner, amountOut);
 

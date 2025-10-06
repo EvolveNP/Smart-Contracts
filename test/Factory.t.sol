@@ -27,6 +27,8 @@ contract FactoryTest is Test {
     uint256 mainnetFork;
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
     uint160 public constant sqrtPriceX96 = 79228162514264337593543950336; // 1:1 price ratio
+    address treasuryWalletAddress;
+    address donationWalletAddress;
 
     function setUp() public {
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
@@ -36,7 +38,8 @@ contract FactoryTest is Test {
         vm.prank(owner);
         factory.createFundraisingVault("FundraisingToken", "FTN", usdc, nonProfitOrg);
 
-        (fundraisingTokenAddress,,,,,,) = factory.fundraisingAddresses(nonProfitOrg);
+        (fundraisingTokenAddress,, treasuryWalletAddress, donationWalletAddress,,,) =
+            factory.fundraisingAddresses(nonProfitOrg);
         vm.stopPrank();
     }
 
@@ -253,5 +256,29 @@ contract FactoryTest is Test {
         console.log(
             "FundraisingToken balance (factory):", IERC20Metadata(fundraisingTokenAddress).balanceOf(address(factory))
         );
+    }
+
+    function testSwapFundraisingToken() public {
+        testAddLiquidityAddsLiquidity();
+
+        vm.startPrank(registryAddress);
+
+        // transfer some amount to donation wallet
+
+        TreasuryWallet treasury = TreasuryWallet(treasuryWalletAddress);
+
+        treasury.transferFunds();
+
+        assert(IERC20Metadata(fundraisingTokenAddress).balanceOf(donationWalletAddress) > 0);
+
+        assert(IERC20Metadata(usdc).balanceOf(donationWalletAddress) == 0);
+
+        // swap fundraising token to usdc
+
+        DonationWallet donation = DonationWallet(donationWalletAddress);
+
+        donation.swapFundraisingToken();
+
+        assert(IERC20Metadata(usdc).balanceOf(nonProfitOrg) > 0);
     }
 }
