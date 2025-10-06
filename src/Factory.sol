@@ -287,7 +287,7 @@ contract Factory is Ownable {
         return poolKeys[_owner];
     }
 
-    function getFundraisingTokenBalance(address _fundraisingTokenAddress) external view returns(uint256) {
+    function getFundraisingTokenBalance(address _fundraisingTokenAddress) external view returns (uint256) {
         return IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager);
     }
 }
