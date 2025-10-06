@@ -290,4 +290,8 @@ contract Factory is Ownable {
     function getFundraisingTokenBalance(address _fundraisingTokenAddress) external view returns (uint256) {
         return IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager);
     }
+
+    function getSqrtPriceX96(address _owner) external view returns (uint160) {
+        return fundraisingAddresses[_owner].sqrtPriceX96;
+    }
 }
