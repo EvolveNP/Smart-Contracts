@@ -259,7 +259,7 @@ contract Factory is Ownable {
         uint128 _liquidity =
             LiquidityAmounts.getLiquidityForAmounts(_sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, _amount0, _amount1);
 
-        params[0] = abi.encode(key, tickLower, tickUpper, _liquidity, _amount0, _amount1, _owner, bytes(""));
+        params[0] = abi.encode(key, tickLower, tickUpper, _liquidity, _amount0, _amount1, 0xdead, bytes(""));
 
         params[1] = abi.encode(key.currency0, key.currency1);
 
@@ -285,5 +285,9 @@ contract Factory is Ownable {
 
     function getPoolKey(address _owner) external view returns (PoolKey memory) {
         return poolKeys[_owner];
+    }
+
+    function getFundraisingTokenBalance(address _fundraisingTokenAddress) external view returns (uint256) {
+        return IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager);
     }
 }

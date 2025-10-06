@@ -11,6 +11,7 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
 abstract contract Swap {
     UniversalRouter public immutable router; // The address of the uniswap universal router
@@ -37,10 +38,12 @@ abstract contract Swap {
         positionManager = IPositionManager(_positionManager);
     }
 
-    function swapExactInputSingle(PoolKey memory key, uint128 amountIn, uint128 minAmountOut)
-        internal
-        returns (uint256 amountOut)
-    {
+    function swapExactInputSingle(
+        PoolKey memory key,
+        uint128 amountIn,
+        uint128 minAmountOut,
+        bool _isCurrency0FundraisingToken
+    ) internal returns (uint256 amountOut) {
         // Encode the Universal Router command
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
@@ -54,29 +57,38 @@ abstract contract Swap {
         params[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: key,
-                zeroForOne: true,
+                zeroForOne: _isCurrency0FundraisingToken,
                 amountIn: amountIn,
                 amountOutMinimum: minAmountOut,
                 hookData: bytes("")
             })
         );
-        params[1] = abi.encode(key.currency0, amountIn);
-        params[2] = abi.encode(key.currency1, minAmountOut);
+
+        Currency currencyIn = _isCurrency0FundraisingToken ? key.currency0 : key.currency1;
+        Currency currencyOut = _isCurrency0FundraisingToken ? key.currency1 : key.currency0;
+
+        params[1] = abi.encode(currencyIn, amountIn);
+        params[2] = abi.encode(currencyOut, minAmountOut);
 
         // Combine actions and params into inputs
         inputs[0] = abi.encode(actions, params);
 
+        address currencyInAddress = Currency.unwrap(currencyIn);
+
         // Execute the swap
         uint256 deadline = block.timestamp + 20;
+
+        approveTokenWithPermit2(currencyInAddress, uint160(amountIn), uint48(deadline));
+
         router.execute(commands, inputs, deadline);
 
         // Verify and return the output amount
-        amountOut = key.currency1.balanceOf(address(this));
+        amountOut = key.currency0.balanceOf(address(this));
         require(amountOut >= minAmountOut, "Insufficient output amount");
         return amountOut;
     }
 
-    function approveTokenWithPermit2(address token, uint160 amount, uint48 expiration) external {
+    function approveTokenWithPermit2(address token, uint160 amount, uint48 expiration) internal {
         IERC20(token).approve(address(permit2), type(uint256).max);
         permit2.approve(token, address(router), amount, expiration);
     }

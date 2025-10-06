@@ -111,9 +111,9 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
     function adjustLPHealth(uint128 _amount0, uint128 _amount1, address _owner) internal {
         // swap half of the amount in for currency0
-        PoolKey memory key = IFactory(factoryAddress).getPoolKey();
-
-        uint256 amountOut = swapExactInputSingle(key, uint128(_amount0 * 95e16) / 1e18, 1); // swap 5% slippage
+        PoolKey memory key = IFactory(factoryAddress).getPoolKey(_owner);
+        // TODO
+        uint256 amountOut = swapExactInputSingle(key, uint128(_amount0 * 95e16) / 1e18, 1, true); // swap 5% slippage
 
         IFactory(factoryAddress).addLiquidity(
             _amount0 / 2,
@@ -141,7 +141,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * @dev Can only be called by the registry contract and
      *      only if the treasury wallet balance is above the minimum threshold
      */
-    function transferFunds() internal onlyRegistry {
+    function transferFunds() public onlyRegistry {
         uint256 amountToTransferAndBurn = 0;
         if (isTransferAllowed()) {
             amountToTransferAndBurn = (fundraisingToken.totalSupply() * 2e16) / 1e18; // 2% of total supply
