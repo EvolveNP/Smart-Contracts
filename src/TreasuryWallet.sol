@@ -166,8 +166,4 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
             return false;
         }
     }
-
-    function getReserves() internal pure returns (uint128 reserve0, uint128 reserve1) {
-        return (0, 0); // TODO
-    }
 }
