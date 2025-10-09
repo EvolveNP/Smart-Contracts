@@ -13,40 +13,51 @@ contract DonationWalletTest is Test {
     address public constant poolManager = address(0x8);
     address public constant permit2 = address(0x9);
     address public constant positionManager = address(0x10);
+    address public constant quoter = address(0x11);
 
     function setUp() public {
-        donationWallet =
-            new DonationWallet(factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, positionManager);
+        donationWallet = new DonationWallet(
+            factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, positionManager, quoter
+        );
     }
 
     function testConstructorRevertsOnZeroFactoryAddress() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
-        new DonationWallet(address(0), nonProfitOrgAddress, router, poolManager, permit2, positionManager);
+        new DonationWallet(address(0), nonProfitOrgAddress, router, poolManager, permit2, positionManager, quoter);
     }
 
     function testConstructorRevertsOnZeroNonProfitOrgAddress() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
-        new DonationWallet(factoryAddress, address(0), router, poolManager, permit2, positionManager);
+        new DonationWallet(factoryAddress, address(0), router, poolManager, permit2, positionManager, quoter);
     }
 
     function testConstructorRevertsOnZeroRouterAddress() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
-        new DonationWallet(factoryAddress, nonProfitOrgAddress, address(0), poolManager, permit2, positionManager);
+        new DonationWallet(
+            factoryAddress, nonProfitOrgAddress, address(0), poolManager, permit2, positionManager, quoter
+        );
     }
 
     function testConstructorRevertsOnZeroPoolManagerAddress() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
-        new DonationWallet(factoryAddress, nonProfitOrgAddress, router, address(0), permit2, positionManager);
+        new DonationWallet(factoryAddress, nonProfitOrgAddress, router, address(0), permit2, positionManager, quoter);
     }
 
     function testConstructorRevertsOnZeroPermit2Address() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
-        new DonationWallet(factoryAddress, nonProfitOrgAddress, router, poolManager, address(0), positionManager);
+        new DonationWallet(
+            factoryAddress, nonProfitOrgAddress, router, poolManager, address(0), positionManager, quoter
+        );
     }
 
     function testConstructorRevertsOnZeroPositionManagerAddress() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
-        new DonationWallet(factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, address(0));
+        new DonationWallet(factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, address(0), quoter);
+    }
+
+    function testConstructorRevertsOnZeroQuoterAddress() public {
+        vm.expectRevert(Swap.ZeroAddress.selector);
+        new DonationWallet(factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, poolManager, address(0));
     }
 
     function testConstructorSetsStateVariables() public view {

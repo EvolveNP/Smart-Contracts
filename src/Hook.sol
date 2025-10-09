@@ -2,15 +2,10 @@
 pragma solidity 0.8.26;
 
 import {BaseHook} from "v4-periphery/src/utils/BaseHook.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {BaseHook} from "v4-periphery/src/utils/BaseHook.sol";
-
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
-import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
@@ -72,9 +67,10 @@ contract FundraisingTokenHook is BaseHook {
                 || (!isFundraisingTokenIsCurrencyZero && params.zeroForOne)
         ) isBuying = true;
 
-        //    if(isTransferBlocked(sender, SwapParams.amount)) revert TransactionNotAllowed();
         if (isBuying && isTransferBlocked(sender, _amountOut)) revert TransactionNotAllowed();
-        lastBuyTimestamp[sender] = block.timestamp;
+
+        if (block.timestamp < luanchTimestamp + timeToHold) lastBuyTimestamp[sender] = block.timestamp;
+
         return (BaseHook.afterSwap.selector, 0);
     }
 

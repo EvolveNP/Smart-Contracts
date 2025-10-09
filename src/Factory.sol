@@ -18,6 +18,7 @@ import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Helper} from "./libraries/Helper.sol";
+import {FundraisingTokenHook} from "./Hook.sol";
 
 contract Factory is Ownable {
     using LiquidityAmounts for uint160;
@@ -37,6 +38,7 @@ contract Factory is Ownable {
         address underlyingAddress; // The address of the underlying token (e.g., USDC, ETH)
         address treasuryWallet; // the address of the treasury wallet
         address donationWallet; // the address of the donation wallet
+        address hook; // The address of the hook
         address owner; // the non profit org wallet address
         bool isLPCreated; // whether the lp is created or not
         uint160 sqrtPriceX96;
@@ -54,6 +56,7 @@ contract Factory is Ownable {
     int24 public constant defaultTickSpacing = 60; // default tick spacing for the pool
     address public immutable poolManager; // The address of the uniswap v4 pool manager
     address public immutable positionManager; // The address of the uniswap v4 position manager
+    address public immutable quoter; // Ther address of the uniswap v4 quoter
 
     event FundraisingVaultCreated(
         address fundraisingToken, address treasuryWallet, address donationWallet, address owner
@@ -84,7 +87,8 @@ contract Factory is Ownable {
         address _poolManager,
         address _positionManager,
         address _router,
-        address _permit2
+        address _permit2,
+        address _quoter
     )
         Ownable(msg.sender)
         nonZeroAddress(_registryAddress)
@@ -92,6 +96,7 @@ contract Factory is Ownable {
         nonZeroAddress(_positionManager)
         nonZeroAddress(_router)
         nonZeroAddress(_permit2)
+        nonZeroAddress(_quoter)
     {
         registryAddress = _registryAddress;
         poolManager = _poolManager;
@@ -114,14 +119,23 @@ contract Factory is Ownable {
         address _underlyingAddress,
         address _owner
     ) external nonZeroAddress(_owner) nonZeroAddress(_underlyingAddress) onlyOwner {
-        if (fundraisingAddresses[_owner].fundraisingToken != address(0)) revert VaultAlreadyExists();
+        if (fundraisingAddresses[_owner].fundraisingToken != address(0)) {
+            revert VaultAlreadyExists();
+        }
         // deploy donation wallet
         DonationWallet donationWallet =
-            new DonationWallet(address(this), _owner, router, poolManager, permit2, positionManager);
+            new DonationWallet(address(this), _owner, router, poolManager, permit2, positionManager, quoter);
 
         // deploy treasury wallet
         TreasuryWallet treasuryWallet = new TreasuryWallet(
-            address(donationWallet), address(this), registryAddress, router, poolManager, permit2, positionManager
+            address(donationWallet),
+            address(this),
+            registryAddress,
+            router,
+            poolManager,
+            permit2,
+            positionManager,
+            quoter
         );
         uint8 _decimals = 18;
         if (_underlyingAddress != address(0)) {
@@ -153,6 +167,7 @@ contract Factory is Ownable {
             _underlyingAddress,
             address(treasuryWallet),
             address(donationWallet),
+            address(0),
             _owner,
             false,
             0
@@ -192,13 +207,11 @@ contract Factory is Ownable {
             (currency0, currency1) = (currency1, currency0);
         }
 
-        PoolKey memory poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: 0,
-            tickSpacing: defaultTickSpacing,
-            hooks: IHooks(address(0)) // currently we don't use hooks
-        });
+        FundraisingTokenHook hook =
+            new FundraisingTokenHook(IPoolManager(poolManager), _fundraisingAddresses.fundraisingToken);
+
+        PoolKey memory poolKey =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 0, tickSpacing: defaultTickSpacing, hooks: hook});
 
         IPoolManager _poolManager = IPoolManager(poolManager);
 
@@ -206,6 +219,7 @@ contract Factory is Ownable {
 
         _fundraisingAddresses.isLPCreated = true;
         _fundraisingAddresses.sqrtPriceX96 = _sqrtPriceX96;
+        _fundraisingAddresses.hook = address(hook);
 
         // store pool key for easy access
         poolKeys[_owner] = poolKey;

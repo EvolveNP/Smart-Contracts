@@ -33,6 +33,7 @@ abstract contract Swap {
         nonZeroAddress(_poolManager)
         nonZeroAddress(_permit2)
         nonZeroAddress(_positionManager)
+        nonZeroAddress(_quoter)
     {
         router = UniversalRouter(payable(_router));
         poolManager = IPoolManager(_poolManager);

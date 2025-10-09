@@ -73,9 +73,10 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         address _router,
         address _poolManager,
         address _permit2,
-        address _positionManager
+        address _positionManager,
+        address _quoter
     )
-        Swap(_router, _poolManager, _permit2, _positionManager, address(0))
+        Swap(_router, _poolManager, _permit2, _positionManager, _quoter)
         nonZeroAddress(_donationAddress)
         nonZeroAddress(_factoryAddress)
     {
