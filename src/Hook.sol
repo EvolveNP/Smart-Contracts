@@ -43,8 +43,8 @@ contract FundraisingTokenHook is BaseHook {
             afterAddLiquidity: false,
             beforeRemoveLiquidity: false,
             afterRemoveLiquidity: false,
-            beforeSwap: true,
-            afterSwap: false,
+            beforeSwap: false,
+            afterSwap: true,
             beforeDonate: false,
             afterDonate: false,
             beforeSwapReturnDelta: false,
@@ -54,53 +54,41 @@ contract FundraisingTokenHook is BaseHook {
         });
     }
 
-    /**
-     *  {See _beforeSwap in BaseHook.sol}
-     */
-    function _beforeSwap(address sender, PoolKey calldata key, SwapParams calldata params, bytes calldata data)
-        internal
-        override
-        returns (bytes4, BeforeSwapDelta, uint24)
-    {
-        // Example: block certain swaps or collect analytics here
-        // You can access params.amountSpecified, params.zeroForOne, etc.
-
-        // No delta modification, no dynamic fee
-        // check which currency is fundraising
-
+    function _afterSwap(
+        address sender,
+        PoolKey calldata key,
+        SwapParams calldata params,
+        BalanceDelta delta,
+        bytes calldata data
+    ) internal override returns (bytes4, int128) {
         address currency0 = Currency.unwrap(key.currency0);
 
         bool isFundraisingTokenIsCurrencyZero = currency0 == fundraisingTokenAddress;
 
         bool isBuying;
-
+        int128 _amountOut = delta.amount0();
         if (
             (isFundraisingTokenIsCurrencyZero && !params.zeroForOne)
                 || (!isFundraisingTokenIsCurrencyZero && params.zeroForOne)
         ) isBuying = true;
 
         //    if(isTransferBlocked(sender, SwapParams.amount)) revert TransactionNotAllowed();
-        if (isBuying && isTransferBlocked(sender, 10)) revert TransactionNotAllowed();
-
-        BeforeSwapDelta delta = BeforeSwapDeltaLibrary.ZERO_DELTA;
-        uint24 newFee = 0;
-
-        // Must return the correct selector to indicate success
-        return (BaseHook.beforeSwap.selector, delta, newFee);
+        if (isBuying && isTransferBlocked(sender, _amountOut)) revert TransactionNotAllowed();
+        lastBuyTimestamp[sender] = block.timestamp;
+        return (BaseHook.afterSwap.selector, 0);
     }
 
-    function isTransferBlocked(address _account, uint256 _amount) internal returns (bool) {
+    function isTransferBlocked(address _account, int128 _amount) internal view returns (bool) {
         // Block transfers during launch protection
         if (block.number < launchBlock + blocksToHold) return true;
 
         if (block.timestamp < luanchTimestamp + timeToHold) {
             // Block transfers if within time to hold after launch
             uint256 lastBuy = lastBuyTimestamp[_account];
-            lastBuyTimestamp[_account] = block.timestamp;
 
             uint256 _maxBuySize = IERC20(fundraisingTokenAddress).totalSupply() * maxBuySize / 1e18;
 
-            if (_amount > _maxBuySize) return true;
+            if (uint256(uint128(_amount)) > _maxBuySize) return true;
 
             // Block transfers if within cooldown
             if (lastBuy != 0 && block.timestamp < lastBuy + perWalletCoolDownPeriod) return true;

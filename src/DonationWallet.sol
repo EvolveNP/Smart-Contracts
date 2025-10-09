@@ -47,7 +47,11 @@ contract DonationWallet is Swap {
         address _poolManager,
         address _permit2,
         address _positionManager
-    ) nonZeroAddress(_factoryAddress) nonZeroAddress(_owner) Swap(_router, _poolManager, _permit2, _positionManager, address(0)) {
+    )
+        nonZeroAddress(_factoryAddress)
+        nonZeroAddress(_owner)
+        Swap(_router, _poolManager, _permit2, _positionManager, address(0))
+    {
         owner = _owner;
         factoryAddress = _factoryAddress;
     }
