@@ -19,7 +19,6 @@ import {Helper} from "./libraries/Helper.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
 
-
 contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
      * Errors
@@ -76,7 +75,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         address _permit2,
         address _positionManager
     )
-        Swap(_router, _poolManager, _permit2, _positionManager)
+        Swap(_router, _poolManager, _permit2, _positionManager, address(0))
         nonZeroAddress(_donationAddress)
         nonZeroAddress(_factoryAddress)
     {

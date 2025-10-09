@@ -12,12 +12,14 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {IV4Quoter} from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
 
 abstract contract Swap {
     UniversalRouter public immutable router; // The address of the uniswap universal router
     IPoolManager public immutable poolManager; // The address of the uniswap v4 pool manager
     IPermit2 public immutable permit2; // The address of the uniswap permit2 contract
     IPositionManager public immutable positionManager; // The address of the uniswap v4 position manager
+    IV4Quoter public immutable qouter; // qouter
 
     error ZeroAddress();
 
@@ -26,7 +28,7 @@ abstract contract Swap {
         _;
     }
 
-    constructor(address _router, address _poolManager, address _permit2, address _positionManager)
+    constructor(address _router, address _poolManager, address _permit2, address _positionManager, address _quoter)
         nonZeroAddress(_router)
         nonZeroAddress(_poolManager)
         nonZeroAddress(_permit2)
@@ -36,6 +38,7 @@ abstract contract Swap {
         poolManager = IPoolManager(_poolManager);
         permit2 = IPermit2(_permit2);
         positionManager = IPositionManager(_positionManager);
+        qouter = IV4Quoter(_quoter);
     }
 
     function swapExactInputSingle(
@@ -91,5 +94,24 @@ abstract contract Swap {
     function approveTokenWithPermit2(address token, uint160 amount, uint48 expiration) internal {
         IERC20(token).approve(address(permit2), type(uint256).max);
         permit2.approve(token, address(router), amount, expiration);
+    }
+
+    function getMinAmountOut(
+        PoolKey calldata _key,
+        bool _zeroForOne,
+        uint128 _exactAmount,
+        bytes calldata _hookData,
+        uint256 _slippage
+    ) internal returns (uint256 minAmountAmount) {
+        IV4Quoter.QuoteExactSingleParams memory params = IV4Quoter.QuoteExactSingleParams({
+            poolKey: _key,
+            zeroForOne: _zeroForOne,
+            exactAmount: _exactAmount,
+            hookData: _hookData
+        });
+
+        (uint256 amountOut,) = qouter.quoteExactInputSingle(params);
+
+        return (amountOut * _slippage) / 1e18;
     }
 }
