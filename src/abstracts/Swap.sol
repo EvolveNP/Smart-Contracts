@@ -20,6 +20,7 @@ abstract contract Swap {
     IPermit2 public immutable permit2; // The address of the uniswap permit2 contract
     IPositionManager public immutable positionManager; // The address of the uniswap v4 position manager
     IV4Quoter public immutable qouter; // qouter
+    uint256 public constant slippage = 5e16; // 5%
 
     error ZeroAddress();
 
@@ -61,7 +62,7 @@ abstract contract Swap {
         params[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: key,
-                zeroForOne: _isCurrency0FundraisingToken,
+                zeroForOne: !_isCurrency0FundraisingToken,
                 amountIn: amountIn,
                 amountOutMinimum: minAmountOut,
                 hookData: bytes("")
@@ -97,13 +98,10 @@ abstract contract Swap {
         permit2.approve(token, address(router), amount, expiration);
     }
 
-    function getMinAmountOut(
-        PoolKey calldata _key,
-        bool _zeroForOne,
-        uint128 _exactAmount,
-        bytes calldata _hookData,
-        uint256 _slippage
-    ) internal returns (uint256 minAmountAmount) {
+    function getMinAmountOut(PoolKey memory _key, bool _zeroForOne, uint128 _exactAmount, bytes memory _hookData)
+        internal
+        returns (uint256 minAmountAmount)
+    {
         IV4Quoter.QuoteExactSingleParams memory params = IV4Quoter.QuoteExactSingleParams({
             poolKey: _key,
             zeroForOne: _zeroForOne,
@@ -113,6 +111,6 @@ abstract contract Swap {
 
         (uint256 amountOut,) = qouter.quoteExactInputSingle(params);
 
-        return (amountOut * _slippage) / 1e18;
+        return (amountOut * slippage) / 1e18;
     }
 }
