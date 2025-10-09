@@ -266,8 +266,6 @@ contract Factory is Ownable {
         view
         returns (bytes memory)
     {
-        IPositionManager _positionManager = IPositionManager(positionManager);
-
         bytes memory actions;
         bytes[] memory params;
         address _currency0 = Currency.unwrap(key.currency0);
@@ -301,7 +299,7 @@ contract Factory is Ownable {
         uint256 deadline = block.timestamp + 1000;
 
         return
-            abi.encodeWithSelector(_positionManager.modifyLiquidities.selector, abi.encode(actions, params), deadline);
+            abi.encodeWithSelector(IPositionManager.modifyLiquidities.selector, abi.encode(actions, params), deadline);
     }
 
     function getPoolKey(address _owner) external view returns (PoolKey memory) {
