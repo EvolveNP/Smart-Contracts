@@ -19,13 +19,13 @@ import {Helper} from "./libraries/Helper.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
 
-
 contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
      * Errors
      */
     error OnlyFactory();
     error OnlyRegistry();
+    error TransferFailed();
     /**
      * State Variables
      */
@@ -40,6 +40,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     uint256 public constant TRANSFER_INTERVAL = 30 days; // The interval at which funds transferred to donation wallet
     uint256 internal constant HEALTH_THRESHHOLD = 7e16; // The health threshold
     uint256 internal constant MULTIPLIER = 1e18;
+    int24 internal constant defaultTickSpace = 60;
 
     /**
      * Events
@@ -74,9 +75,10 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         address _router,
         address _poolManager,
         address _permit2,
-        address _positionManager
+        address _positionManager,
+        address _quoter
     )
-        Swap(_router, _poolManager, _permit2, _positionManager)
+        Swap(_router, _poolManager, _permit2, _positionManager, _quoter)
         nonZeroAddress(_donationAddress)
         nonZeroAddress(_factoryAddress)
     {
@@ -135,8 +137,12 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         address currency0 = Currency.unwrap(key.currency0);
         address currency1 = Currency.unwrap(key.currency1);
         bool isCurrency0FundraisingToken = currency0 == address(fundraisingToken);
+        address underlyingCurrency = isCurrency0FundraisingToken ? currency1 : currency0;
+        // get amount min out
+        uint256 minAmountOut = getMinAmountOut(key, !isCurrency0FundraisingToken, uint128(amountToAddToLP), bytes(""));
         // swap token
-        uint256 amountOut = swapExactInputSingle(key, uint128(amountToAddToLP), 1, isCurrency0FundraisingToken);
+        uint256 amountOut =
+            swapExactInputSingle(key, uint128(amountToAddToLP), uint128(minAmountOut), isCurrency0FundraisingToken);
         uint256 _amount0 = isCurrency0FundraisingToken
             ? amountToAddToLP
             : currency0 == address(0) ? address(this).balance : IERC20(currency0).balanceOf(address(this));
@@ -145,6 +151,15 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
             : currency0 == address(0) ? address(this).balance : IERC20(currency0).balanceOf(address(this));
 
         addLiquidity(key, _owner, currency0, currency1, _amount0, _amount1, isCurrency0FundraisingToken);
+
+        // send leftovers to donation wallet
+        if (underlyingCurrency == address(0) && address(this).balance > 0) {
+            (bool success,) = donationAddress.call{value: address(this).balance}("");
+            if (!success) revert TransferFailed();
+        }
+        if (underlyingCurrency != address(0) && IERC20(underlyingCurrency).balanceOf(address(this)) > 0) {
+            IERC20(underlyingCurrency).transfer(donationAddress, IERC20(underlyingCurrency).balanceOf(address(this)));
+        }
 
         emit LPHealthAdjusted(_owner, amountToAddToLP, amountOut);
     }
@@ -224,7 +239,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
         uint160 _sqrtPriceX96 = IFactory(factoryAddress).getSqrtPriceX96(_owner);
 
-        (int24 tickLower, int24 tickUpper) = Helper.getMinAndMaxTick(_sqrtPriceX96, 60);
+        (int24 tickLower, int24 tickUpper) = Helper.getMinAndMaxTick(_sqrtPriceX96, defaultTickSpace);
 
         uint160 sqrtPriceAX96 = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceBX96 = TickMath.getSqrtPriceAtTick(tickUpper);

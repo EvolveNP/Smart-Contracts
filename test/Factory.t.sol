@@ -24,6 +24,7 @@ contract FactoryTest is Test {
     address public fundraisingTokenAddress;
     address public usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address public constant USDC_WHALE = 0x55FE002aefF02F77364de339a1292923A15844B8;
+    address public constant quoter = 0x52F0E24D1c21C8A0cB1e5a5dD6198556BD9E1203;
     uint256 mainnetFork;
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
     uint160 public constant sqrtPriceX96 = 79228162514264337593543950336; // 1:1 price ratio
@@ -34,38 +35,43 @@ contract FactoryTest is Test {
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
         vm.selectFork(mainnetFork);
         vm.prank(owner);
-        factory = new Factory(registryAddress, poolManager, positionManager, router, permit2);
+        factory = new Factory(registryAddress, poolManager, positionManager, router, permit2, quoter);
         vm.prank(owner);
         factory.createFundraisingVault("FundraisingToken", "FTN", usdc, nonProfitOrg);
 
-        (fundraisingTokenAddress,, treasuryWalletAddress, donationWalletAddress,,,) =
+        (fundraisingTokenAddress,, treasuryWalletAddress, donationWalletAddress,,,,) =
             factory.fundraisingAddresses(nonProfitOrg);
         vm.stopPrank();
     }
 
     function testConstructorRevertsOnZeroRegistryAddress() public {
         vm.expectRevert(Factory.ZeroAddress.selector);
-        new Factory(address(0), poolManager, positionManager, router, permit2);
+        new Factory(address(0), poolManager, positionManager, router, permit2, quoter);
     }
 
     function testConstructorRevertsOnZeroPoolManagerAddress() public {
         vm.expectRevert(Factory.ZeroAddress.selector);
-        new Factory(registryAddress, address(0), positionManager, router, permit2);
+        new Factory(registryAddress, address(0), positionManager, router, permit2, quoter);
     }
 
     function testConstructorRevertsOnZeroPositionManagerAddress() public {
         vm.expectRevert(Factory.ZeroAddress.selector);
-        new Factory(registryAddress, poolManager, address(0), router, permit2);
+        new Factory(registryAddress, poolManager, address(0), router, permit2, quoter);
     }
 
     function testConstructorRevertsOnZeroRouterAddress() public {
         vm.expectRevert(Factory.ZeroAddress.selector);
-        new Factory(registryAddress, poolManager, positionManager, address(0), permit2);
+        new Factory(registryAddress, poolManager, positionManager, address(0), permit2, quoter);
     }
 
     function testConstructorRevertsOnZeroPermit2Address() public {
         vm.expectRevert(Factory.ZeroAddress.selector);
-        new Factory(registryAddress, poolManager, positionManager, router, address(0));
+        new Factory(registryAddress, poolManager, positionManager, router, address(0), quoter);
+    }
+
+    function testConstructorRevertsOnZeroQuoterAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        new Factory(registryAddress, poolManager, positionManager, router, permit2, address(0));
     }
 
     function testConstructorSetsStateVariables() public view {
@@ -121,7 +127,7 @@ contract FactoryTest is Test {
     function testCreateFundraisingVaultA() public {
         vm.prank(owner);
         factory.createFundraisingVault("TokenName", "TKN", usdc, owner);
-        (address fundraisingToken,, address treasuryWallet, address donationWallet,,,) =
+        (address fundraisingToken,, address treasuryWallet, address donationWallet,,,,) =
             factory.fundraisingAddresses(owner);
         assert(fundraisingToken != address(0));
         assert(donationWallet != address(0));
