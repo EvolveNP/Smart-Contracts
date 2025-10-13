@@ -66,6 +66,8 @@ contract Factory is Ownable2StepUpgradeable {
     );
     event LiquidityPoolCreated(address currency0, address currency1, address owner);
     event InitialLiquidityAdded(address owner, uint256 amount0, uint256 amount1);
+    event TreasuryEmergencyPause(address owner, address treasuryWallet, bool puase);
+    event DonationEmergencyPauseSet(address owner, address donationWallet, bool pause);
 
     modifier nonZeroAddress(address _address) {
         if (_address == address(0)) revert ZeroAddress();
@@ -265,6 +267,40 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     /**
+     * @notice Pauses treasury wallet functionality for the given non profit org
+     * @param _nonProfitOrgOwner The address of non profit org owner
+     * @param _pause set true to enable emergency pause or false to disable emergency pause
+     * @dev only owner can set the emergency pause
+     */
+    function setTreasuryEmergencyPause(address _nonProfitOrgOwner, bool _pause)
+        external
+        onlyOwner
+        nonZeroAddress(_nonProfitOrgOwner)
+    {
+        TreasuryWallet treasury = TreasuryWallet(fundraisingAddresses[_nonProfitOrgOwner].treasuryWallet);
+        treasury.emergencyPause(_pause);
+        emit TreasuryEmergencyPause(_nonProfitOrgOwner, address(treasury), _pause);
+    }
+
+    function setDonationEmergencyPause(address _nonProfitOrgOwner, bool _pause)
+        external
+        onlyOwner
+        nonZeroAddress(_nonProfitOrgOwner)
+    {
+        DonationWallet donation = DonationWallet(fundraisingAddresses[_nonProfitOrgOwner].donationWallet);
+        donation.emergencyPause(_pause);
+        emit DonationEmergencyPauseSet(_nonProfitOrgOwner, address(donation), _pause);
+    }
+
+    function getFundraisingTokenBalance(address _fundraisingTokenAddress) external view returns (uint256) {
+        return IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager);
+    }
+
+    function getSqrtPriceX96(address _owner) external view returns (uint160) {
+        return fundraisingAddresses[_owner].sqrtPriceX96;
+    }
+
+    /**
      *
      * @param _amount0 The amount of currency0 to add as initial liquidity
      * @param _amount1 The amount of currency1 to add as initial liquidity
@@ -313,13 +349,5 @@ contract Factory is Ownable2StepUpgradeable {
 
     function getPoolKey(address _owner) external view returns (PoolKey memory) {
         return poolKeys[_owner];
-    }
-
-    function getFundraisingTokenBalance(address _fundraisingTokenAddress) external view returns (uint256) {
-        return IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager);
-    }
-
-    function getSqrtPriceX96(address _owner) external view returns (uint160) {
-        return fundraisingAddresses[_owner].sqrtPriceX96;
     }
 }
