@@ -29,10 +29,34 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     address public factoryAddress; // The address of the factory contract
     bool internal paused;
 
+    /**
+     * @notice This event is used to track changes to the fundraising token address.
+     * @param fundraisingToken The address of the fundraising token.
+     * @dev Emitted when the fundraising token address is set.
+     */
     event FundraisingTokenAddressSet(address fundraisingToken);
+
+    /**
+     * @notice This event is used to log successful transfers to non-profit organizations.
+     * @param recipient The address of the non-profit receiving funds.
+     * @param amount The amount of funds transferred.
+     * @dev Emitted when funds are transferred to a non-profit recipient.
+     */
     event FundsTransferredToNonProfit(address recipient, uint256 amount);
+    
+    /**
+     * @notice This event is used to notify when the contract's operational state changes.
+     * @param pause Boolean indicating the pause state (true if paused, false if unpaused).
+     * @dev Emitted when the contract is paused or unpaused.
+     */
     event Paused(bool pause);
 
+    /**
+     * @notice Modifier to restrict access to functions to only the factory contract.
+     * @dev Ensures that the provided address matches the factoryAddress state variable.
+     * @param _addr The address to check against the factoryAddress.
+     * @custom:netmod Only the factory contract can call functions using this modifier.
+     */
     modifier onlyFactory(address _addr) {
         require(_addr == factoryAddress, "Only by factory");
         _;
