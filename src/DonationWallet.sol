@@ -43,7 +43,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      * @dev Emitted when funds are transferred to a non-profit recipient.
      */
     event FundsTransferredToNonProfit(address recipient, uint256 amount);
-    
+
     /**
      * @notice This event is used to notify when the contract's operational state changes.
      * @param pause Boolean indicating the pause state (true if paused, false if unpaused).
