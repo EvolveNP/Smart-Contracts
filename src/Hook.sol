@@ -24,12 +24,25 @@ contract FundraisingTokenHook is BaseHook {
 
     mapping(address => uint256) internal lastBuyTimestamp; // The last buy timestamp for each address
 
+    /**
+     * @notice Initializes the Hook contract with the specified PoolManager and fundraising token address.
+     * @param _poolManager The address of the PoolManager contract.
+     * @param _fundraisingTokenAddress The address of the fundraising token.
+     * Sets the fundraising token address, records the current timestamp as the launch time, and stores the current block number as the launch block.
+     */
     constructor(IPoolManager _poolManager, address _fundraisingTokenAddress) BaseHook(_poolManager) {
         fundraisingTokenAddress = _fundraisingTokenAddress;
         luanchTimestamp = block.timestamp;
         launchBlock = block.number;
     }
 
+    /**
+     * @notice Returns the permissions for each hook event in the contract.
+     * @dev This function overrides the base implementation to specify which hook events are enabled.
+     * @return permissions A struct containing boolean flags for each hook event.
+     * @custom:natspec The returned `Hooks.Permissions` struct indicates which hook events are permitted.
+     * Only `afterSwap` is enabled; all other events are disabled.
+     */
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: false,
@@ -49,6 +62,20 @@ contract FundraisingTokenHook is BaseHook {
         });
     }
 
+    /**
+     * @notice Checks if the swap is a buy operation for the fundraising token and enforces transfer restrictions.
+     * @notice Updates the last buy timestamp for the sender if the swap occurs before the hold period ends.
+     * @notice Reverts with TransactionNotAllowed if the transfer is blocked for the sender.
+     * @param sender The address initiating the swap.
+     * @param key The pool key containing currency information.
+     * @param params The parameters of the swap, including direction.
+     * @param delta The balance delta resulting from the swap.
+     * @param data Additional calldata passed to the hook.
+     * @return selector The selector for the afterSwap hook.
+     * @return int128 Reserved value, currently always 0.
+     * @dev Hook function called after a swap operation in the pool.
+     * @custom:netspc Called internally after a swap to enforce fundraising token rules and update buy timestamps.
+     */
     function _afterSwap(
         address sender,
         PoolKey calldata key,
@@ -74,6 +101,19 @@ contract FundraisingTokenHook is BaseHook {
         return (BaseHook.afterSwap.selector, 0);
     }
 
+    /**
+     * @notice Determines if a transfer should be blocked based on launch protection and cooldown rules.
+     * @dev Blocks transfers during the initial launch period and enforces per-wallet cooldowns and max buy size restrictions.
+     * @param _account The address of the account attempting the transfer.
+     * @param _amount The amount being transferred.
+     * @return Returns true if the transfer is blocked, false otherwise.
+     * @custom:netspec
+     * - If the current block is within the launch protection period, returns true.
+     * - If the current timestamp is within the time to hold after launch:
+     *     - Blocks transfers exceeding the maximum buy size.
+     *     - Blocks transfers if the account is within the cooldown period after their last buy.
+     * - Otherwise, returns false.
+     */
     function isTransferBlocked(address _account, int128 _amount) internal view returns (bool) {
         // Block transfers during launch protection
         if (block.number < launchBlock + blocksToHold) return true;

@@ -20,8 +20,16 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {Helper} from "./libraries/Helper.sol";
 import {FundraisingTokenHook} from "./Hook.sol";
 import {IPoolInitializer_v4} from "@uniswap/v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 
-contract Factory is Ownable {
+/**
+ * @title Factory Contract
+ * @notice This contract serves as a factory for deploying and managing other contracts.
+ * @dev Inherits from Ownable2StepUpgradeable to provide two-step ownership transfer functionality.
+ * @custom:netspec The Factory contract enables the creation and management of contract instances, with secure ownership transfer mechanisms.
+ */
+contract Factory is Ownable2StepUpgradeable {
     using LiquidityAmounts for uint160;
 
     /**
@@ -46,33 +54,81 @@ contract Factory is Ownable {
     }
 
     uint256 public constant totalSupply = 1e9; // the total supply of fundraising token
-    address public immutable registryAddress; // The address of chainlink automation registry address
+    address public registryAddress; // The address of chainlink automation registry address
     mapping(address => FundRaisingAddresses) public fundraisingAddresses; // non profit org wallet address => FundRaisingAddresses
 
     // uniswap constants
     mapping(address => PoolKey) public poolKeys; // lp address => pool key:  store pool keys for easy access
-    address public immutable router; // The address of the uniswap universal router
-    address public immutable permit2; // The address of the uniswap permit2 contract
+    address public router; // The address of the uniswap universal router
+    address public permit2; // The address of the uniswap permit2 contract
     uint24 public constant defaultFee = 3000; // default fee tier for the pool
     int24 public constant defaultTickSpacing = 60; // default tick spacing for the pool
-    address public immutable poolManager; // The address of the uniswap v4 pool manager
-    address public immutable positionManager; // The address of the uniswap v4 position manager
-    address public immutable quoter; // Ther address of the uniswap v4 quoter
+    address public poolManager; // The address of the uniswap v4 pool manager
+    address public positionManager; // The address of the uniswap v4 position manager
+    address public quoter; // Ther address of the uniswap v4 quoter
 
+    /**
+     *  @notice Emitted when a new fundraising vault is created.
+     * @dev Contains the fundraising token, treasury wallet, donation wallet, and owner addresses.
+     * @param fundraisingToken The address of the fundraising token.
+     * @param treasuryWallet The address of the treasury wallet.
+     * @param donationWallet The address of the donation wallet.
+     * @param owner The address of the owner.
+     */
     event FundraisingVaultCreated(
         address fundraisingToken, address treasuryWallet, address donationWallet, address owner
     );
+    /**
+     *  @notice Emitted when a new liquidity pool is created.
+     * @dev Contains the currency addresses and owner.
+     * @param currency0 The address of the first currency.
+     * @param currency1 The address of the second currency.
+     * @param owner The address of the owner.
+     */
     event LiquidityPoolCreated(address currency0, address currency1, address owner);
-    event InitialLiquidityAdded(address owner, uint256 amount0, uint256 amount1);
 
+    /**
+     * @notice Emitted when the treasury wallet is paused or unpaused in an emergency.
+     * @dev Contains the owner address, treasury wallet, and pause status.
+     * @param owner The address of the owner.
+     * @param treasuryWallet The address of the treasury wallet.
+     * @param puase The pause status (true if paused, false otherwise).
+     */
+    event TreasuryEmergencyPause(address owner, address treasuryWallet, bool puase);
+    /**
+     * @notice Emitted when the donation wallet pause status is set in an emergency.
+     * @dev Contains the owner address, donation wallet, and pause status.
+     * @param owner The address of the owner.
+     * @param donationWallet The address of the donation wallet.
+     * @param pause The pause status (true if paused, false otherwise).
+     */
+    event DonationEmergencyPauseSet(address owner, address donationWallet, bool pause);
+
+    /**
+     * @notice Ensures that the provided address is not the zero address.
+     * @dev Reverts with `ZeroAddress()` if `_address` is the zero address.
+     * @param _address The address to validate.
+     * @custom:netmod This modifier should be used to prevent zero address assignments in contract logic.
+     */
     modifier nonZeroAddress(address _address) {
         if (_address == address(0)) revert ZeroAddress();
         _;
     }
 
+    /**
+     *  @notice Ensures that the provided amount is not zero.
+     * @dev Reverts with ZeroAmount() if `_amount` is zero.
+     * @param _amount The amount to check for non-zero value.
+     * @custom:netmod Guarantees that the function using this modifier will not execute with a zero amount.
+     */
     modifier nonZeroAmount(uint256 _amount) {
         if (_amount == 0) revert ZeroAmount();
         _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
     /**
@@ -83,7 +139,7 @@ contract Factory is Ownable {
      * @param _router The address of the uniswap universal router
      * @param _permit2 The address of the uniswap permit2 contract
      */
-    constructor(
+    function initialize(
         address _registryAddress,
         address _poolManager,
         address _positionManager,
@@ -91,7 +147,8 @@ contract Factory is Ownable {
         address _permit2,
         address _quoter
     )
-        Ownable(msg.sender)
+        external
+        initializer
         nonZeroAddress(_registryAddress)
         nonZeroAddress(_poolManager)
         nonZeroAddress(_positionManager)
@@ -99,6 +156,7 @@ contract Factory is Ownable {
         nonZeroAddress(_permit2)
         nonZeroAddress(_quoter)
     {
+        __Ownable2Step_init();
         registryAddress = _registryAddress;
         poolManager = _poolManager;
         positionManager = _positionManager;
@@ -124,11 +182,11 @@ contract Factory is Ownable {
             revert VaultAlreadyExists();
         }
         // deploy donation wallet
-        DonationWallet donationWallet =
-            new DonationWallet(address(this), _owner, router, poolManager, permit2, positionManager, quoter);
-
+        DonationWallet donationWallet = new DonationWallet();
+        donationWallet.initialize(address(this), _owner, router, poolManager, permit2, positionManager, quoter);
         // deploy treasury wallet
-        TreasuryWallet treasuryWallet = new TreasuryWallet(
+        TreasuryWallet treasuryWallet = new TreasuryWallet();
+        treasuryWallet.initialize(
             address(donationWallet),
             address(this),
             registryAddress,
@@ -256,10 +314,68 @@ contract Factory is Ownable {
     }
 
     /**
-     *
-     * @param _amount0 The amount of currency0 to add as initial liquidity
-     * @param _amount1 The amount of currency1 to add as initial liquidity
-     * @dev Only callable by the owner of the factory contract
+     * @notice Sets the emergency pause state for the treasury wallet of a specific non-profit organization.
+     * @param _nonProfitOrgOwner The address of the non-profit organization owner whose treasury wallet will be paused or unpaused.
+     * @param _pause Boolean indicating whether to pause (true) or unpause (false) the treasury wallet.
+     * @dev Only callable by the owner.
+     */
+    function setTreasuryEmergencyPause(address _nonProfitOrgOwner, bool _pause)
+        external
+        onlyOwner
+        nonZeroAddress(_nonProfitOrgOwner)
+    {
+        TreasuryWallet treasury = TreasuryWallet(fundraisingAddresses[_nonProfitOrgOwner].treasuryWallet);
+        treasury.emergencyPause(_pause);
+        emit TreasuryEmergencyPause(_nonProfitOrgOwner, address(treasury), _pause);
+    }
+
+    /**
+     * @notice Sets the emergency pause state for a donation wallet.
+     * @param _nonProfitOrgOwner The address of the non-profit organization owner whose donation wallet will be paused or unpaused.
+     * @param _pause Boolean indicating whether to pause (true) or unpause (false) donations.
+     * @dev Only callable by the owner.
+     */
+    function setDonationEmergencyPause(address _nonProfitOrgOwner, bool _pause)
+        external
+        onlyOwner
+        nonZeroAddress(_nonProfitOrgOwner)
+    {
+        DonationWallet donation = DonationWallet(fundraisingAddresses[_nonProfitOrgOwner].donationWallet);
+        donation.emergencyPause(_pause);
+        emit DonationEmergencyPauseSet(_nonProfitOrgOwner, address(donation), _pause);
+    }
+
+    /**
+     * @notice Returns the balance of the fundraising token held by the pool manager.
+     * @dev Calls the `balanceOf` function of the ERC20 token at the specified address.
+     * @param _fundraisingTokenAddress The address of the ERC20 fundraising token contract.
+     * @return The token balance of the pool manager.
+     * @custom:netspec Returns the current balance of the fundraising token for the pool manager.
+     */
+    function getFundraisingTokenBalance(address _fundraisingTokenAddress) external view returns (uint256) {
+        return IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager);
+    }
+
+    /**
+     * @notice Returns the sqrtPriceX96 value associated with the specified owner address.
+     * @dev Retrieves the uint160 sqrtPriceX96 from the fundraisingAddresses mapping for the given owner.
+     * @param _owner The address of the owner whose sqrtPriceX96 value is to be fetched.
+     * @return The sqrtPriceX96 value (uint160) for the specified owner.
+     * @custom:netspec Returns fundraisingAddresses[_owner].sqrtPriceX96.
+     */
+    function getSqrtPriceX96(address _owner) external view returns (uint160) {
+        return fundraisingAddresses[_owner].sqrtPriceX96;
+    }
+
+    /**
+     * @notice Generates the parameters for adding initial liquidity to a Uniswap V4 pool.
+     * @dev Prepares the actions and parameters required for the IPositionManager.modifyLiquidities call.
+     * @param key The PoolKey struct representing the pool.
+     * @param _amount0 The amount of currency0 to add as liquidity.
+     * @param _amount1 The amount of currency1 to add as liquidity.
+     * @param _startingPrice The initial sqrtPriceX96 for the pool.
+     * @return Encoded bytes for the modifyLiquidities multicall.
+     * @custom:netspec Returns encoded parameters for IPositionManager.modifyLiquidities to add initial liquidity to the pool.
      */
     function getModifyLiqiuidityParams(PoolKey memory key, uint256 _amount0, uint256 _amount1, uint160 _startingPrice)
         internal
@@ -302,15 +418,13 @@ contract Factory is Ownable {
             abi.encodeWithSelector(IPositionManager.modifyLiquidities.selector, abi.encode(actions, params), deadline);
     }
 
+    /**
+     * @notice Returns the PoolKey associated with a given owner address.
+     * @dev Retrieves the PoolKey struct from the mapping using the provided owner address.
+     * @param _owner The address of the pool owner whose PoolKey is to be retrieved.
+     * @return The PoolKey struct corresponding to the specified owner address.
+     */
     function getPoolKey(address _owner) external view returns (PoolKey memory) {
         return poolKeys[_owner];
-    }
-
-    function getFundraisingTokenBalance(address _fundraisingTokenAddress) external view returns (uint256) {
-        return IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager);
-    }
-
-    function getSqrtPriceX96(address _owner) external view returns (uint160) {
-        return fundraisingAddresses[_owner].sqrtPriceX96;
     }
 }

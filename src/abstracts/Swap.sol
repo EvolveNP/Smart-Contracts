@@ -13,13 +13,14 @@ import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.s
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IV4Quoter} from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-abstract contract Swap {
-    UniversalRouter public immutable router; // The address of the uniswap universal router
-    IPoolManager public immutable poolManager; // The address of the uniswap v4 pool manager
-    IPermit2 public immutable permit2; // The address of the uniswap permit2 contract
-    IPositionManager public immutable positionManager; // The address of the uniswap v4 position manager
-    IV4Quoter public immutable qouter; // qouter
+abstract contract Swap is Initializable {
+    UniversalRouter public router; // The address of the uniswap universal router
+    IPoolManager public poolManager; // The address of the uniswap v4 pool manager
+    IPermit2 public permit2; // The address of the uniswap permit2 contract
+    IPositionManager public positionManager; // The address of the uniswap v4 position manager
+    IV4Quoter public qouter; // qouter
     uint256 public constant slippage = 5e16; // 5%
 
     error ZeroAddress();
@@ -29,7 +30,9 @@ abstract contract Swap {
         _;
     }
 
-    constructor(address _router, address _poolManager, address _permit2, address _positionManager, address _quoter)
+    function __init(address _router, address _poolManager, address _permit2, address _positionManager, address _quoter)
+        internal
+        onlyInitializing
         nonZeroAddress(_router)
         nonZeroAddress(_poolManager)
         nonZeroAddress(_permit2)
