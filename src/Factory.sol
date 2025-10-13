@@ -20,8 +20,10 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {Helper} from "./libraries/Helper.sol";
 import {FundraisingTokenHook} from "./Hook.sol";
 import {IPoolInitializer_v4} from "@uniswap/v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 
-contract Factory is Ownable {
+contract Factory is Ownable2StepUpgradeable {
     using LiquidityAmounts for uint160;
 
     /**
@@ -46,18 +48,18 @@ contract Factory is Ownable {
     }
 
     uint256 public constant totalSupply = 1e9; // the total supply of fundraising token
-    address public immutable registryAddress; // The address of chainlink automation registry address
+    address public registryAddress; // The address of chainlink automation registry address
     mapping(address => FundRaisingAddresses) public fundraisingAddresses; // non profit org wallet address => FundRaisingAddresses
 
     // uniswap constants
     mapping(address => PoolKey) public poolKeys; // lp address => pool key:  store pool keys for easy access
-    address public immutable router; // The address of the uniswap universal router
-    address public immutable permit2; // The address of the uniswap permit2 contract
+    address public router; // The address of the uniswap universal router
+    address public permit2; // The address of the uniswap permit2 contract
     uint24 public constant defaultFee = 3000; // default fee tier for the pool
     int24 public constant defaultTickSpacing = 60; // default tick spacing for the pool
-    address public immutable poolManager; // The address of the uniswap v4 pool manager
-    address public immutable positionManager; // The address of the uniswap v4 position manager
-    address public immutable quoter; // Ther address of the uniswap v4 quoter
+    address public poolManager; // The address of the uniswap v4 pool manager
+    address public positionManager; // The address of the uniswap v4 position manager
+    address public quoter; // Ther address of the uniswap v4 quoter
 
     event FundraisingVaultCreated(
         address fundraisingToken, address treasuryWallet, address donationWallet, address owner
@@ -75,6 +77,11 @@ contract Factory is Ownable {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      *
      * @param _registryAddress The address of chainlink automation registry address
@@ -83,7 +90,7 @@ contract Factory is Ownable {
      * @param _router The address of the uniswap universal router
      * @param _permit2 The address of the uniswap permit2 contract
      */
-    constructor(
+    function initialize(
         address _registryAddress,
         address _poolManager,
         address _positionManager,
@@ -91,7 +98,8 @@ contract Factory is Ownable {
         address _permit2,
         address _quoter
     )
-        Ownable(msg.sender)
+        external
+        initializer
         nonZeroAddress(_registryAddress)
         nonZeroAddress(_poolManager)
         nonZeroAddress(_positionManager)
@@ -99,6 +107,7 @@ contract Factory is Ownable {
         nonZeroAddress(_permit2)
         nonZeroAddress(_quoter)
     {
+        __Ownable2Step_init();
         registryAddress = _registryAddress;
         poolManager = _poolManager;
         positionManager = _positionManager;
@@ -124,11 +133,11 @@ contract Factory is Ownable {
             revert VaultAlreadyExists();
         }
         // deploy donation wallet
-        DonationWallet donationWallet =
-            new DonationWallet(address(this), _owner, router, poolManager, permit2, positionManager, quoter);
-
+        DonationWallet donationWallet = new DonationWallet();
+        donationWallet.initialize(address(this), _owner, router, poolManager, permit2, positionManager, quoter);
         // deploy treasury wallet
-        TreasuryWallet treasuryWallet = new TreasuryWallet(
+        TreasuryWallet treasuryWallet = new TreasuryWallet();
+        treasuryWallet.initialize(
             address(donationWallet),
             address(this),
             registryAddress,

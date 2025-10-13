@@ -30,9 +30,9 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * State Variables
      */
 
-    address public immutable donationAddress; // The address of the donation wallet
+    address public donationAddress; // The address of the donation wallet
     IFundraisingToken public fundraisingToken; // The fundraising token
-    address public immutable factoryAddress; // The address of the factory contract
+    address public factoryAddress; // The address of the factory contract
     address public registryAddress; // The address of the chainlink registry contract
     uint256 public lastTransferTimestamp;
 
@@ -68,7 +68,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * @param _factoryAddress The address of the factory contract
      * @param _registryAddress The address of the registry
      */
-    constructor(
+    function initialize(
         address _donationAddress,
         address _factoryAddress,
         address _registryAddress,
@@ -77,11 +77,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         address _permit2,
         address _positionManager,
         address _quoter
-    )
-        Swap(_router, _poolManager, _permit2, _positionManager, _quoter)
-        nonZeroAddress(_donationAddress)
-        nonZeroAddress(_factoryAddress)
-    {
+    ) external nonZeroAddress(_donationAddress) nonZeroAddress(_factoryAddress) {
+        __init(_router, _poolManager, _permit2, _positionManager, _quoter);
         donationAddress = _donationAddress;
         factoryAddress = _factoryAddress;
         registryAddress = _registryAddress;

@@ -20,8 +20,8 @@ contract DonationWallet is Swap {
     using StateLibrary for IPoolManager;
 
     IERC20 public fundraisingTokenAddress; // Address of the FundRaisingToken contract
-    address public immutable owner; // Owner of the DonationWallet
-    address public immutable factoryAddress; // The address of the factory contract
+    address public owner; // Owner of the DonationWallet
+    address public factoryAddress; // The address of the factory contract
 
     event FundraisingTokenAddressSet(address fundraisingToken);
     event FundsTransferredToNonProfit(address recipient, uint256 amount);
@@ -40,7 +40,7 @@ contract DonationWallet is Swap {
      * @param _permit2 The address of the uniswap permit2 contract
      * @param _positionManager The address of the uniswap v4 position manager
      */
-    constructor(
+    function initialize(
         address _factoryAddress,
         address _owner,
         address _router,
@@ -48,11 +48,8 @@ contract DonationWallet is Swap {
         address _permit2,
         address _positionManager,
         address _qouter
-    )
-        nonZeroAddress(_factoryAddress)
-        nonZeroAddress(_owner)
-        Swap(_router, _poolManager, _permit2, _positionManager, _qouter)
-    {
+    ) external initializer nonZeroAddress(_factoryAddress) nonZeroAddress(_owner) {
+        __init(_router, _poolManager, _permit2, _positionManager, _qouter);
         owner = _owner;
         factoryAddress = _factoryAddress;
     }
