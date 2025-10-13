@@ -26,6 +26,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     error OnlyFactory();
     error OnlyRegistry();
     error TransferFailed();
+    error EmergencyPauseAlreadySet();
     /**
      * State Variables
      */
@@ -41,6 +42,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     uint256 internal constant HEALTH_THRESHHOLD = 7e16; // The health threshold
     uint256 internal constant MULTIPLIER = 1e18;
     int24 internal constant defaultTickSpace = 60;
+    bool paused;
 
     /**
      * Events
@@ -48,6 +50,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     event FundraisingTokenSet(address fundraisingToken);
     event FundTransferredToDonationWallet(uint256 amountTransferredAndBurned);
     event LPHealthAdjusted(address recipient, uint256 amount0, uint256 amount1);
+    event Paused(bool paused);
 
     /**
      * Modifiers
@@ -97,7 +100,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());
         bool initiateAddLiqudity = (HEALTH_THRESHHOLD > lpCurrentThreshold);
 
-        upkeepNeeded = (initiateTransfer || initiateAddLiqudity);
+        upkeepNeeded = !paused && (initiateTransfer || initiateAddLiqudity);
 
         if (upkeepNeeded) {
             performData = abi.encode(initiateTransfer, initiateAddLiqudity);
@@ -266,5 +269,16 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         }
 
         _positionManager.modifyLiquidities{value: valueToPass}(abi.encode(actions, params), deadline);
+    }
+
+    /**
+     * @notice Enables or disables emergency pause
+     * @param _pause set true to enable emergency pause otherwise set false
+     * @dev Only factory can set emergency pause
+     */
+    function emergencyPause(bool _pause) external onlyFactory {
+        if (paused == _pause) revert EmergencyPauseAlreadySet();
+        paused = _pause;
+        emit Paused(_pause);
     }
 }
