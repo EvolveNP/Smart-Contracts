@@ -124,6 +124,14 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         }
     }
 
+    /**
+     * @notice Adjusts the health of the liquidity pool by swapping half of the fundraising token surplus for the underlying currency,
+     *         adds liquidity to the pool, and sends any leftover tokens or ETH to the donation wallet.
+     * @dev Calculates the amount to add to the LP based on the fundraising token supply and minimum threshold.
+     *      Determines the pool key and currencies involved, swaps tokens as needed, and adds liquidity.
+     *      Any remaining underlying currency or ETH is transferred to the donation wallet.
+     * Emits a {LPHealthAdjusted} event after successful adjustment.
+     */
     function adjustLPHealth() internal {
         // swap half of the amount in for currency0
         uint256 amountToAddToLP = (
@@ -191,8 +199,10 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     }
 
     /**
-     * @notice Check if the conditions are mate to send fundraising token to donation wallet
-     *         and burn
+     * @notice Checks if the treasury wallet's fundraising token balance meets the minimum threshold required to allow transfer and burn operations.
+     * @dev Calculates the current threshold as the ratio of the treasury's fundraising token balance to the total supply, scaled by 1e18.
+     *      Returns true if the threshold is greater than or equal to MINIMUM_THRESHHOLD, otherwise false.
+     * @return True if transfer is allowed, false otherwise.
      */
     function isTransferAllowed() internal view returns (bool) {
         uint256 treasuryBalance = fundraisingToken.balanceOf(address(this));
@@ -205,12 +215,30 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         }
     }
 
+    /**
+     * @notice Calculates the current health threshold of the LP (Liquidity Pool) by dividing the fundraising token balance held by the factory by the total supply of the fundraising token, scaled by a multiplier.
+     * @dev Uses the IFactory interface to get the fundraising token balance and accesses the total supply from the fundraisingToken contract.
+     * @return The current LP health threshold as a uint256 value.
+     */
     function getCurrentLPHealthThreshold() internal view returns (uint256) {
         uint256 lpBalance = IFactory(factoryAddress).getFundraisingTokenBalance(address(fundraisingToken));
         uint256 totalSupply = fundraisingToken.totalSupply();
         return (lpBalance * MULTIPLIER) / totalSupply;
     }
 
+    /**
+     * @notice Adds liquidity to a pool using the provided parameters and manages token approvals.
+     * @dev This function handles both ERC20 and ETH liquidity positions, encodes necessary actions and parameters,
+     *      calculates ticks and liquidity amounts, and interacts with the position manager to modify liquidities.
+     *      It also approves the position manager to spend tokens via Permit2.
+     * @param key The PoolKey struct containing pool identifiers and currencies.
+     * @param _owner The address of the owner for whom liquidity is being added.
+     * @param _currency0 The address of the first currency/token.
+     * @param _currency1 The address of the second currency/token.
+     * @param _amount0 The amount of currency0 to add as liquidity.
+     * @param _amount1 The amount of currency1 to add as liquidity.
+     * @param _isCurrencyZeroFundraisingToken Boolean indicating if currency0 is the fundraising token.
+     */
     function addLiquidity(
         PoolKey memory key,
         address _owner,
