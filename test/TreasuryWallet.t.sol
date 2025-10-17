@@ -10,6 +10,8 @@ import {Swap} from "../src/abstracts/Swap.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {Factory} from "../src/Factory.sol";
 
 contract TreasuryWalletTest is Test {
     TreasuryWallet public treasuryWallet;
@@ -23,28 +25,46 @@ contract TreasuryWalletTest is Test {
     address constant PERMIT2 = address(0x6666);
     address constant POSITION_MANAGER = address(0x7777);
     address constant QUOTER = address(0x8888);
-
-    uint256 constant MIN_HEALTH = 100;
-    uint256 constant TRANSFER_INTERVAL = 3600;
-    uint256 constant MIN_LP_HEALTH = 30 days;
+    address constant LP_MANAGER = address(0x11);
+    uint256 constant MIN_HEALTH = 7e16; // 7%
+    uint256 constant TRANSFER_INTERVAL = 30 days;
+    uint256 constant MIN_LP_HEALTH = 7e16;
     int24 constant DEFAULT_TICK = 60;
 
     uint256 internal constant MULTIPLIER = 1e18;
 
     address treasuryBeacon;
+    address factoryProxy;
 
     function setUp() public {
         address treasuryImplementation = address(new TreasuryWallet());
         treasuryBeacon = address(new UpgradeableBeacon(treasuryImplementation, msg.sender));
-        console.log(treasuryBeacon, "beacon");
         treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
-        console.log(address(treasuryWallet), "address");
+        address factoryImplementation = address(new Factory());
+        factoryProxy = address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes("")));
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken", "FRT", 6, address(0x1), address(treasuryWallet), DONATION, FACTORY, 1e27, 2e16, 30e16
+            "FundRaisingToken", "FRT", 6, LP_MANAGER, address(treasuryWallet), DONATION, FACTORY, 1e27, 2e16, 30e16
+        );
+
+        treasuryWallet.initialize(
+            DONATION,
+            factoryProxy,
+            REGISTRY,
+            ROUTER,
+            POOL_MANAGER,
+            PERMIT2,
+            POSITION_MANAGER,
+            QUOTER,
+            MIN_HEALTH,
+            TRANSFER_INTERVAL,
+            MIN_LP_HEALTH,
+            DEFAULT_TICK,
+            address(fundRaisingToken)
         );
     }
 
     function testRevertOnZeroDonationAddress() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             address(0),
@@ -64,6 +84,7 @@ contract TreasuryWalletTest is Test {
     }
 
     function testRevertOnZeroFactoryAddress() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -83,6 +104,7 @@ contract TreasuryWalletTest is Test {
     }
 
     function testRevertOnZeroRegistryAddress() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -102,6 +124,7 @@ contract TreasuryWalletTest is Test {
     }
 
     function testRevertOnZeroRouterAddress() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -121,6 +144,7 @@ contract TreasuryWalletTest is Test {
     }
 
     function testRevertOnZeroPoolManagerAddress() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -140,6 +164,7 @@ contract TreasuryWalletTest is Test {
     }
 
     function testRevertOnZeroPermit2Address() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -159,6 +184,7 @@ contract TreasuryWalletTest is Test {
     }
 
     function testRevertOnZeroPositionManagerAddress() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -178,6 +204,7 @@ contract TreasuryWalletTest is Test {
     }
 
     function testRevertOnZeroQuoterAddress() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -197,6 +224,7 @@ contract TreasuryWalletTest is Test {
     }
 
     function testRevertOnZeroFundraisingTokenAddress() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -216,6 +244,7 @@ contract TreasuryWalletTest is Test {
     }
 
     function testRevertOnZeroTransferInterval() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         vm.expectRevert(Swap.ZeroAmount.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -235,6 +264,7 @@ contract TreasuryWalletTest is Test {
     }
 
     function testCannotInitializeTwice() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
@@ -270,6 +300,7 @@ contract TreasuryWalletTest is Test {
     }
 
     function testInitializeSetsValuesCorrectly() public {
+        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
@@ -291,5 +322,86 @@ contract TreasuryWalletTest is Test {
         assertEq(treasuryWallet.registryAddress(), REGISTRY);
         assertEq(treasuryWallet.minimumHealthThreshhold(), MIN_HEALTH);
         assertEq(treasuryWallet.transferInterval(), TRANSFER_INTERVAL);
+    }
+
+    function testCheckUpkeepReturnsFalseUpkeepNeededAndZeroBytesPerformDataIfPaused() public {
+        vm.startPrank(factoryProxy);
+        treasuryWallet.emergencyPause(true);
+
+        (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
+
+        assertEq(upkeepNeeded, false);
+        assertEq(performData, bytes(""));
+    }
+
+    function testCheckUpkeepReturnsFalseIfTransferIntervalNotReached() public {
+        vm.startPrank(LP_MANAGER);
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * MIN_LP_HEALTH) / MULTIPLIER;
+        fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP); // send FTN token to pool manager. consider it is in Liquidity pool
+        (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
+        assertEq(upkeepNeeded, false);
+        assertEq(performData, bytes(""));
+    }
+
+    function testCheckUpkeepReturnsFalseIfTransferNotAllowedAndLPIsHealthy() public {
+        vm.startPrank(address(treasuryWallet));
+        // transfer FTN to donation to make treasury balance less than min health
+        fundRaisingToken.transfer(DONATION, 200000000000000000000000000);
+        vm.stopPrank();
+        vm.warp(31 days);
+        vm.startPrank(LP_MANAGER);
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * MIN_LP_HEALTH) / MULTIPLIER;
+        fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP); // send FTN token to pool manager. consider it is in Liquidity pool
+        (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
+        assertEq(upkeepNeeded, false);
+        assertEq(performData, bytes(""));
+    }
+
+    function testCheckUpkeepReturnsTrueIfLPIsNotHealthyAndTransferNotAllowed() public {
+        vm.startPrank(address(treasuryWallet));
+        // transfer FTN to donation to make treasury balance less than min health
+        fundRaisingToken.transfer(DONATION, 200000000000000000000000000);
+        vm.stopPrank();
+        vm.warp(31 days);
+        vm.startPrank(LP_MANAGER);
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * MIN_LP_HEALTH) / MULTIPLIER;
+        fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP - 2000); // send FTN token to pool manager. consider it is in Liquidity pool
+        (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
+        assertEq(upkeepNeeded, true);
+        bytes memory _performData = abi.encode(false, true);
+        assertEq(performData, _performData);
+    }
+
+    function testCheckUpkeepReturnsUpKeepNeededTrueAndInitiateAddLiquidityAndInitiateTransferTrue() public {
+        vm.warp(31 days);
+        vm.startPrank(LP_MANAGER);
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * MIN_LP_HEALTH) / MULTIPLIER;
+        fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP - 2000); // send FTN token to pool manager. consider it is in Liquidity pool
+        (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
+        assertEq(upkeepNeeded, true);
+        bytes memory _performData = abi.encode(true, true);
+        assertEq(performData, _performData);
+
+        (bool initiateTransfer, bool initiateAddLiquidity) = abi.decode(_performData, (bool, bool));
+        assertEq(initiateTransfer, true);
+        assertEq(initiateAddLiquidity, true);
+        vm.stopPrank();
+    }
+
+    function testPerformUpKeepTransferFundsToDonationWalletIfInitiateTransferIsTrue() public {
+        vm.startPrank(REGISTRY);
+        bytes memory _performData = abi.encode(true, false);
+        uint256 totalSupplyBeforeBurn = fundRaisingToken.totalSupply();
+        uint256 amountToTransferAndBurn = (fundRaisingToken.totalSupply() * 2e16) / 1e18; // 2% of total supply
+        uint256 treasuryBalanceBeforeTransfer = fundRaisingToken.balanceOf(address(treasuryWallet));
+        treasuryWallet.performUpkeep(_performData);
+
+        assertEq(fundRaisingToken.totalSupply(), totalSupplyBeforeBurn - amountToTransferAndBurn);
+        assertEq(fundRaisingToken.balanceOf(DONATION), amountToTransferAndBurn);
+        assertEq(
+            fundRaisingToken.balanceOf(address(treasuryWallet)),
+            treasuryBalanceBeforeTransfer - (2 * amountToTransferAndBurn)
+        );
+        vm.stopPrank();
     }
 }

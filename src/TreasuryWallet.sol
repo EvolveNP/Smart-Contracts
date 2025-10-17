@@ -18,6 +18,7 @@ import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmo
 import {Helper} from "./libraries/Helper.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
+import {console} from "forge-std/console.sol";
 
 contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
@@ -102,6 +103,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         minLPHealthThreshhold = _minLPHealthThreshhold;
         tickSpacing = _tickSpacing;
         fundraisingToken = IFundraisingToken(_fundraisingToken);
+        lastTransferTimestamp = block.timestamp;
     }
 
     /**
@@ -116,7 +118,6 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         uint256 lpCurrentThreshold = getCurrentLPHealthThreshold();
         bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());
         bool initiateAddLiqudity = (minLPHealthThreshhold > lpCurrentThreshold);
-
         upkeepNeeded = !paused && (initiateTransfer || initiateAddLiqudity);
 
         if (upkeepNeeded) {
@@ -129,7 +130,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
      * See {AutomationCompatibleInterace - performUpkeep}
      */
-    function performUpkeep(bytes calldata performData) external {
+    function performUpkeep(bytes calldata performData) external onlyRegistry {
         (bool initiateTransfer, bool initiateAddLiquidity) = abi.decode(performData, (bool, bool));
 
         if (initiateTransfer) {
@@ -194,14 +195,11 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * @dev Can only be called by the registry contract and
      *      only if the treasury wallet balance is above the minimum threshold
      */
-    function transferFunds() public onlyRegistry {
+    function transferFunds() internal {
         uint256 amountToTransferAndBurn = 0;
-        if (isTransferAllowed()) {
-            amountToTransferAndBurn = (fundraisingToken.totalSupply() * 2e16) / 1e18; // 2% of total supply
-            fundraisingToken.transfer(donationAddress, amountToTransferAndBurn);
-            fundraisingToken.burn(amountToTransferAndBurn);
-        }
-
+        amountToTransferAndBurn = (fundraisingToken.totalSupply() * 2e16) / MULTIPLIER; // 2% of total supply
+        fundraisingToken.transfer(donationAddress, amountToTransferAndBurn);
+        fundraisingToken.burn(amountToTransferAndBurn);
         emit FundTransferredToDonationWallet(amountToTransferAndBurn);
     }
 
@@ -214,7 +212,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     function isTransferAllowed() internal view returns (bool) {
         uint256 treasuryBalance = fundraisingToken.balanceOf(address(this));
         uint256 totalSupply = fundraisingToken.totalSupply();
-        uint256 currentThreshold = ((treasuryBalance * 1e18) / totalSupply);
+        uint256 currentThreshold = ((treasuryBalance * MULTIPLIER) / totalSupply);
         if (currentThreshold >= minimumHealthThreshhold) {
             return true;
         } else {
@@ -228,7 +226,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * @return The current LP health threshold as a uint256 value.
      */
     function getCurrentLPHealthThreshold() internal view returns (uint256) {
-        uint256 lpBalance = IFactory(factoryAddress).getFundraisingTokenBalance(address(fundraisingToken));
+        uint256 lpBalance = fundraisingToken.balanceOf(address(poolManager));
         uint256 totalSupply = fundraisingToken.totalSupply();
         return (lpBalance * MULTIPLIER) / totalSupply;
     }
