@@ -37,17 +37,16 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     address public registryAddress; // The address of the chainlink registry contract
     uint256 public lastTransferTimestamp;
 
-    uint256 public constant MINIMUM_THRESHHOLD = 15e16; // The minimum threshold for transferring funds
-    uint256 public constant TRANSFER_INTERVAL = 30 days; // The interval at which funds transferred to donation wallet
-    uint256 internal constant HEALTH_THRESHHOLD = 7e16; // The health threshold
+    uint256 public minimumHealthThreshhold; // The minimum threshold for transferring funds
+    uint256 public transferInterval; // The interval at which funds transferred to donation wallet
+    uint256 internal minLPHealthThreshhold; // The health threshold
     uint256 internal constant MULTIPLIER = 1e18;
-    int24 internal constant defaultTickSpace = 60;
+    int24 internal tickSpacing;
     bool paused;
 
     /**
      * Events
      */
-    event FundraisingTokenSet(address fundraisingToken);
     event FundTransferredToDonationWallet(uint256 amountTransferredAndBurned);
     event LPHealthAdjusted(address recipient, uint256 amount0, uint256 amount1);
     event Paused(bool paused);
@@ -79,12 +78,30 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         address _poolManager,
         address _permit2,
         address _positionManager,
-        address _quoter
-    ) external nonZeroAddress(_donationAddress) nonZeroAddress(_factoryAddress) {
+        address _quoter,
+        uint256 _minimumHealthThreshhold,
+        uint256 _transferInterval,
+        uint256 _minLPHealthThreshhold,
+        int24 _tickSpacing,
+        address _fundraisingToken
+    )
+        external
+        initializer
+        nonZeroAddress(_donationAddress)
+        nonZeroAddress(_factoryAddress)
+        nonZeroAddress(_fundraisingToken)
+        nonZeroAddress(_registryAddress)
+        nonZeroAmount(_transferInterval)
+    {
         __init(_router, _poolManager, _permit2, _positionManager, _quoter);
         donationAddress = _donationAddress;
         factoryAddress = _factoryAddress;
         registryAddress = _registryAddress;
+        minimumHealthThreshhold = _minimumHealthThreshhold;
+        transferInterval = _transferInterval;
+        minLPHealthThreshhold = _minLPHealthThreshhold;
+        tickSpacing = _tickSpacing;
+        fundraisingToken = IFundraisingToken(_fundraisingToken);
     }
 
     /**
@@ -95,10 +112,10 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         view
         returns (bool upkeepNeeded, bytes memory performData)
     {
-        uint256 transferDate = lastTransferTimestamp + TRANSFER_INTERVAL;
+        uint256 transferDate = lastTransferTimestamp + transferInterval;
         uint256 lpCurrentThreshold = getCurrentLPHealthThreshold();
         bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());
-        bool initiateAddLiqudity = (HEALTH_THRESHHOLD > lpCurrentThreshold);
+        bool initiateAddLiqudity = (minLPHealthThreshhold > lpCurrentThreshold);
 
         upkeepNeeded = !paused && (initiateTransfer || initiateAddLiqudity);
 
@@ -135,7 +152,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     function adjustLPHealth() internal {
         // swap half of the amount in for currency0
         uint256 amountToAddToLP = (
-            ((fundraisingToken.totalSupply() * MINIMUM_THRESHHOLD) / MULTIPLIER)
+            ((fundraisingToken.totalSupply() * minimumHealthThreshhold) / MULTIPLIER)
                 - IFactory(factoryAddress).getFundraisingTokenBalance(address(fundraisingToken))
         ) / 2;
 
@@ -173,16 +190,6 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     }
 
     /**
-     * @notice Sets the fundraising token address
-     * @param _fundraisingToken The address of the fundraising token
-     * @dev Only set via factory contract
-     */
-    function setFundraisingToken(address _fundraisingToken) external onlyFactory {
-        fundraisingToken = IFundraisingToken(_fundraisingToken);
-        emit FundraisingTokenSet(_fundraisingToken);
-    }
-
-    /**
      * @notice Transfer funds to donation wallet and burn an equal amount
      * @dev Can only be called by the registry contract and
      *      only if the treasury wallet balance is above the minimum threshold
@@ -201,14 +208,14 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
      * @notice Checks if the treasury wallet's fundraising token balance meets the minimum threshold required to allow transfer and burn operations.
      * @dev Calculates the current threshold as the ratio of the treasury's fundraising token balance to the total supply, scaled by 1e18.
-     *      Returns true if the threshold is greater than or equal to MINIMUM_THRESHHOLD, otherwise false.
+     *      Returns true if the threshold is greater than or equal to minimumHealthThreshhold, otherwise false.
      * @return True if transfer is allowed, false otherwise.
      */
     function isTransferAllowed() internal view returns (bool) {
         uint256 treasuryBalance = fundraisingToken.balanceOf(address(this));
         uint256 totalSupply = fundraisingToken.totalSupply();
         uint256 currentThreshold = ((treasuryBalance * 1e18) / totalSupply);
-        if (currentThreshold >= MINIMUM_THRESHHOLD) {
+        if (currentThreshold >= minimumHealthThreshhold) {
             return true;
         } else {
             return false;
@@ -267,7 +274,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
         uint160 _sqrtPriceX96 = IFactory(factoryAddress).getSqrtPriceX96(_owner);
 
-        (int24 tickLower, int24 tickUpper) = Helper.getMinAndMaxTick(_sqrtPriceX96, defaultTickSpace);
+        (int24 tickLower, int24 tickUpper) = Helper.getMinAndMaxTick(_sqrtPriceX96, tickSpacing);
 
         uint160 sqrtPriceAX96 = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceBX96 = TickMath.getSqrtPriceAtTick(tickUpper);
