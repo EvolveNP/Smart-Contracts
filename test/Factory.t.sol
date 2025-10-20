@@ -202,21 +202,6 @@ contract FactoryTest is Test {
 
     function testCreateFundraisingVaultRevertsIfVaultAlreadyExists() public {
         vm.prank(owner);
-        factory.createFundraisingVault(
-            "TokenName",
-            "TKN",
-            usdc,
-            nonProfitOrg,
-            taxFee,
-            maximumThreshold,
-            minimumHealthThreshhold,
-            transferInterval,
-            minLPHealthThreshhold,
-            tickSpacing
-        );
-        vm.stopPrank();
-
-        vm.prank(owner);
         vm.expectRevert(Factory.VaultAlreadyExists.selector);
         factory.createFundraisingVault(
             "TokenName",
@@ -239,7 +224,7 @@ contract FactoryTest is Test {
             "TokenName",
             "TKN",
             usdc,
-            nonProfitOrg,
+            address(30),
             taxFee,
             maximumThreshold,
             minimumHealthThreshhold,
@@ -248,13 +233,12 @@ contract FactoryTest is Test {
             tickSpacing
         );
         (address fundraisingToken,, address treasuryWallet, address donationWallet,,,,) =
-            factory.fundraisingAddresses(nonProfitOrg);
+            factory.fundraisingAddresses(address(30));
         assert(fundraisingToken != address(0));
         assert(donationWallet != address(0));
         assert(treasuryWallet != address(0));
 
         FundRaisingToken token = FundRaisingToken(fundraisingToken);
-        console.log(token.balanceOf(treasuryWallet), "treasury balance");
         assertEq(token.name(), "TokenName");
         assertEq(token.symbol(), "TKN");
         assertEq(token.decimals(), IERC20Metadata(usdc).decimals());
@@ -268,7 +252,7 @@ contract FactoryTest is Test {
         assertEq(token.factoryAddress(), address(factory));
 
         DonationWallet dw = DonationWallet(donationWallet);
-        assertEq(dw.owner(), nonProfitOrg);
+        assertEq(dw.owner(), address(30));
         assertEq(dw.factoryAddress(), address(factory));
         assertEq(address(dw.router()), router);
         assertEq(address(dw.poolManager()), poolManager);

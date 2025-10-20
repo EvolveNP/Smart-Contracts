@@ -30,13 +30,6 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     bool internal paused;
 
     /**
-     * @notice This event is used to track changes to the fundraising token address.
-     * @param fundraisingToken The address of the fundraising token.
-     * @dev Emitted when the fundraising token address is set.
-     */
-    event FundraisingTokenAddressSet(address fundraisingToken);
-
-    /**
      * @notice This event is used to log successful transfers to non-profit organizations.
      * @param recipient The address of the non-profit receiving funds.
      * @param amount The amount of funds transferred.
@@ -78,11 +71,13 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         address _poolManager,
         address _permit2,
         address _positionManager,
-        address _qouter
-    ) external initializer nonZeroAddress(_factoryAddress) nonZeroAddress(_owner) {
+        address _qouter,
+        address _fundraisingToken
+    ) external initializer nonZeroAddress(_factoryAddress) nonZeroAddress(_owner) nonZeroAddress(_fundraisingToken) {
         __init(_router, _poolManager, _permit2, _positionManager, _qouter);
         owner = _owner;
         factoryAddress = _factoryAddress;
+        fundraisingTokenAddress = IERC20(_fundraisingToken);
     }
 
     /**
@@ -117,7 +112,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         address currency0 = Currency.unwrap(key.currency0);
         bool isCurrency0FundraisingToken = currency0 == address(fundraisingTokenAddress);
 
-        uint256 minAmountOut = getMinAmountOut(key, !isCurrency0FundraisingToken, uint128(amountIn), bytes(""));
+        uint256 minAmountOut = getMinAmountOut(key, isCurrency0FundraisingToken, uint128(amountIn), bytes(""));
 
         uint256 amountOut =
             swapExactInputSingle(key, uint128(amountIn), uint128(minAmountOut), isCurrency0FundraisingToken);
@@ -127,16 +122,6 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         require(success, "Transfer failed");
 
         emit FundsTransferredToNonProfit(owner, amountOut);
-    }
-
-    /**
-     * @notice Set the address of the fundraising token
-     * @param _fundraisingToken The address of the fundraising token
-     * @dev Only set vai factory contract
-     */
-    function setFundraisingTokenAddress(address _fundraisingToken) external onlyFactory(msg.sender) {
-        fundraisingTokenAddress = IERC20(_fundraisingToken);
-        emit FundraisingTokenAddressSet(_fundraisingToken);
     }
 
     /**
