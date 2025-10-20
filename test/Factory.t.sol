@@ -11,6 +11,7 @@ import {FundRaisingToken} from "../src/FundRaisingToken.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 import {Helper} from "../src/libraries/Helper.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract FactoryTest is Test {
     Factory public factory;
@@ -30,51 +31,94 @@ contract FactoryTest is Test {
     uint160 public constant sqrtPriceX96 = 79228162514264337593543950336; // 1:1 price ratio
     address treasuryWalletAddress;
     address donationWalletAddress;
+    address constant admin = address(0x22);
+
+    string tokenName = "Fundraising Token";
+    string tokenSymbol = "FTN";
+    uint256 taxFee = 2e16; // 2%
+    uint256 maximumThreshold = 30e16; // 30%
+    uint256 minimumHealthThreshhold = 7e16; // 7%
+    uint256 transferInterval = 30 days;
+    uint256 minLPHealthThreshhold = 5e16; // 5%
+    int24 tickSpacing = 60;
 
     function setUp() public {
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
         vm.selectFork(mainnetFork);
-        vm.prank(owner);
-        factory = new Factory(registryAddress, poolManager, positionManager, router, permit2, quoter);
-        vm.prank(owner);
-        factory.createFundraisingVault("FundraisingToken", "FTN", usdc, nonProfitOrg);
+        vm.startPrank(owner);
+
+        address factoryImplementation = address(new Factory());
+        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
+        factory.initialize(registryAddress, poolManager, positionManager, router, permit2, quoter, admin);
+
+        factory.createFundraisingVault(
+            "FundraisingToken",
+            "FTN",
+            usdc,
+            nonProfitOrg,
+            taxFee,
+            maximumThreshold,
+            minimumHealthThreshhold,
+            transferInterval,
+            minLPHealthThreshhold,
+            tickSpacing
+        );
 
         (fundraisingTokenAddress,, treasuryWalletAddress, donationWalletAddress,,,,) =
             factory.fundraisingAddresses(nonProfitOrg);
         vm.stopPrank();
     }
 
-    function testConstructorRevertsOnZeroRegistryAddress() public {
+    function testInitializeRevertsOnZeroRegistryAddress() public {
+        address factoryImplementation = address(new Factory());
+        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
-        new Factory(address(0), poolManager, positionManager, router, permit2, quoter);
+        factory.initialize(address(0), poolManager, positionManager, router, permit2, quoter, admin);
     }
 
-    function testConstructorRevertsOnZeroPoolManagerAddress() public {
+    function testInitializeRevertsOnZeroPoolManagerAddress() public {
+        address factoryImplementation = address(new Factory());
+        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
-        new Factory(registryAddress, address(0), positionManager, router, permit2, quoter);
+        factory.initialize(registryAddress, address(0), positionManager, router, permit2, quoter, admin);
     }
 
-    function testConstructorRevertsOnZeroPositionManagerAddress() public {
+    function testInitializeRevertsOnZeroPositionManagerAddress() public {
+        address factoryImplementation = address(new Factory());
+        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
-        new Factory(registryAddress, poolManager, address(0), router, permit2, quoter);
+        factory.initialize(registryAddress, poolManager, address(0), router, permit2, quoter, admin);
     }
 
-    function testConstructorRevertsOnZeroRouterAddress() public {
+    function testInitializeRevertsOnZeroRouterAddress() public {
+        address factoryImplementation = address(new Factory());
+        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
-        new Factory(registryAddress, poolManager, positionManager, address(0), permit2, quoter);
+        factory.initialize(registryAddress, poolManager, positionManager, address(0), permit2, quoter, admin);
     }
 
-    function testConstructorRevertsOnZeroPermit2Address() public {
+    function testInitialzeRevertsOnZeroPermit2Address() public {
+        address factoryImplementation = address(new Factory());
+        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
-        new Factory(registryAddress, poolManager, positionManager, router, address(0), quoter);
+        factory.initialize(registryAddress, poolManager, positionManager, router, address(0), quoter, admin);
     }
 
-    function testConstructorRevertsOnZeroQuoterAddress() public {
+    function testInitializeRevertsOnZeroQuoterAddress() public {
+        address factoryImplementation = address(new Factory());
+        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
-        new Factory(registryAddress, poolManager, positionManager, router, permit2, address(0));
+        factory.initialize(registryAddress, poolManager, positionManager, router, permit2, address(0), admin);
     }
 
-    function testConstructorSetsStateVariables() public view {
+    function testInitializeRevertsOnZeroAdminAddress() public {
+        address factoryImplementation = address(new Factory());
+        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.initialize(registryAddress, poolManager, positionManager, router, permit2, quoter, address(0));
+    }
+
+    function testInitializeSetsStateVariables() public view {
         assertEq(factory.registryAddress(), registryAddress);
         assertEq(factory.poolManager(), poolManager);
         assertEq(factory.positionManager(), positionManager);
@@ -87,48 +131,124 @@ contract FactoryTest is Test {
     }
 
     function testOnlyOwnerModifier() public {
-        vm.prank(address(0x10));
+        vm.startPrank(address(0x10));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
         factory.transferOwnership(address(0x20));
         vm.stopPrank();
 
-        vm.prank(owner);
+        vm.startPrank(owner);
+        console.log(factory.owner(), "owner");
         factory.transferOwnership(address(0x20));
         vm.stopPrank();
-
+        vm.startPrank(address(0x20));
+        // two step ownership transfer
+        factory.acceptOwnership();
         assertEq(factory.owner(), address(0x20));
     }
 
     function testCreateFundraisingVaultRevertsIfNotOwner() public {
         vm.prank(address(0x10));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
-        factory.createFundraisingVault("TokenName", "TKN", usdc, address(0x10));
+        factory.createFundraisingVault(
+            "TokenName",
+            "TKN",
+            usdc,
+            nonProfitOrg,
+            taxFee,
+            maximumThreshold,
+            minimumHealthThreshhold,
+            transferInterval,
+            minLPHealthThreshhold,
+            tickSpacing
+        );
         vm.stopPrank();
     }
 
     function testCreateFundraisingVaultRevertsOnZeroOwnerAddress() public {
         vm.prank(owner);
         vm.expectRevert(Factory.ZeroAddress.selector);
-        factory.createFundraisingVault("TokenName", "TKN", usdc, address(0));
+        factory.createFundraisingVault(
+            "TokenName",
+            "TKN",
+            usdc,
+            address(0),
+            taxFee,
+            maximumThreshold,
+            minimumHealthThreshhold,
+            transferInterval,
+            minLPHealthThreshhold,
+            tickSpacing
+        );
+        vm.stopPrank();
+    }
+
+    function testCreateFundraisingVaultRevertsOnUnderlyingAssetAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.createFundraisingVault(
+            "TokenName",
+            "TKN",
+            address(0),
+            owner,
+            taxFee,
+            maximumThreshold,
+            minimumHealthThreshhold,
+            transferInterval,
+            minLPHealthThreshhold,
+            tickSpacing
+        );
         vm.stopPrank();
     }
 
     function testCreateFundraisingVaultRevertsIfVaultAlreadyExists() public {
         vm.prank(owner);
-        factory.createFundraisingVault("TokenName", "TKN", usdc, owner);
+        factory.createFundraisingVault(
+            "TokenName",
+            "TKN",
+            usdc,
+            nonProfitOrg,
+            taxFee,
+            maximumThreshold,
+            minimumHealthThreshhold,
+            transferInterval,
+            minLPHealthThreshhold,
+            tickSpacing
+        );
         vm.stopPrank();
 
         vm.prank(owner);
         vm.expectRevert(Factory.VaultAlreadyExists.selector);
-        factory.createFundraisingVault("TokenName", "TKN", usdc, owner);
+        factory.createFundraisingVault(
+            "TokenName",
+            "TKN",
+            usdc,
+            nonProfitOrg,
+            taxFee,
+            maximumThreshold,
+            minimumHealthThreshhold,
+            transferInterval,
+            minLPHealthThreshhold,
+            tickSpacing
+        );
         vm.stopPrank();
     }
 
-    function testCreateFundraisingVaultA() public {
+    function testCreateFundraisingVaultAndEmitFundraisingVaultCreatedEvent() public {
         vm.prank(owner);
-        factory.createFundraisingVault("TokenName", "TKN", usdc, owner);
+        factory.createFundraisingVault(
+            "TokenName",
+            "TKN",
+            usdc,
+            nonProfitOrg,
+            taxFee,
+            maximumThreshold,
+            minimumHealthThreshhold,
+            transferInterval,
+            minLPHealthThreshhold,
+            tickSpacing
+        );
         (address fundraisingToken,, address treasuryWallet, address donationWallet,,,,) =
-            factory.fundraisingAddresses(owner);
+            factory.fundraisingAddresses(nonProfitOrg);
         assert(fundraisingToken != address(0));
         assert(donationWallet != address(0));
         assert(treasuryWallet != address(0));
@@ -148,7 +268,7 @@ contract FactoryTest is Test {
         assertEq(token.factoryAddress(), address(factory));
 
         DonationWallet dw = DonationWallet(donationWallet);
-        assertEq(dw.owner(), owner);
+        assertEq(dw.owner(), nonProfitOrg);
         assertEq(dw.factoryAddress(), address(factory));
         assertEq(address(dw.router()), router);
         assertEq(address(dw.poolManager()), poolManager);
@@ -166,114 +286,80 @@ contract FactoryTest is Test {
         vm.stopPrank();
     }
 
-    function testCreateCannotCreatePoolWithZeroOwner() public {
+    function testCreateCannotCreatePoolWithZeroOwnerAddress() public {
         vm.prank(owner);
         vm.expectRevert(Factory.ZeroAddress.selector);
-        factory.createPool(address(0), 1);
+        factory.createPool(address(0), 1, 1);
+        vm.stopPrank();
+    }
+
+    function testCreateCannotCreatePoolWithZeroAmount0() public {
+        vm.prank(owner);
+        vm.expectRevert(Factory.ZeroAmount.selector);
+        factory.createPool(nonProfitOrg, 0, 1);
+        vm.stopPrank();
+    }
+
+    function testCreateCannotCreatePoolWithZeroAmount1() public {
+        vm.prank(owner);
+        vm.expectRevert(Factory.ZeroAmount.selector);
+        factory.createPool(nonProfitOrg, 1, 0);
         vm.stopPrank();
     }
 
     function testCreatePoolCannotCreatePoolIfVaultNotCreated() public {
         vm.prank(owner);
         vm.expectRevert(Factory.FundraisingVaultNotCreated.selector);
-        factory.createPool(address(0x10), 1);
-        vm.stopPrank();
-    }
-
-    function testCreatePoolCannotCreateSamePoolTwice() public {
-        vm.prank(owner);
-        factory.createPool(nonProfitOrg, sqrtPriceX96);
-        vm.prank(owner);
-        vm.expectRevert(Factory.PoolAlreadyExists.selector);
-        factory.createPool(nonProfitOrg, sqrtPriceX96);
+        factory.createPool(address(0x10), 1, 1);
         vm.stopPrank();
     }
 
     function testCreatePoolOnlyOwnerCanCreatePool() public {
-        vm.prank(owner);
-        factory.createFundraisingVault("TokenName", "TKN", usdc, owner);
-
         vm.prank(address(0x10));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
-        factory.createPool(owner, 1);
+        factory.createPool(owner, 1, 1);
         vm.stopPrank();
     }
 
     function testCreatePoolOwnerCanCreateAPoolOnUniswap() public {
         vm.prank(owner);
+        uint256 amount0 = 30_000_000_000; // amount of usdc
+        uint256 amount1 = IERC20Metadata(fundraisingTokenAddress).balanceOf(owner); // amount of fundraising token
+
+        vm.startPrank(USDC_WHALE);
+
+        IERC20Metadata(usdc).transfer(owner, amount0);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        IERC20Metadata(usdc).approve(address(factory), amount0);
+        IERC20Metadata(fundraisingTokenAddress).approve(address(factory), amount1);
         vm.expectEmit(true, true, true, false);
         emit Factory.LiquidityPoolCreated(usdc, fundraisingTokenAddress, nonProfitOrg);
-        factory.createPool(nonProfitOrg, sqrtPriceX96);
+        factory.createPool(nonProfitOrg, amount0, amount1);
         vm.stopPrank();
     }
 
-    function testAddLiquidityOnlyOwnerCanAddLiquidity() public {
-        vm.prank(owner);
-        factory.createPool(nonProfitOrg, sqrtPriceX96);
-        vm.prank(address(0x10));
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
-        factory.addLiquidity(1000, 1000, nonProfitOrg);
-        vm.stopPrank();
-    }
-
-    function testAddLiquidityCannotAddLiquidityWithZeroAmount0() public {
+    function testCreatePoolCannotCreateSamePoolTwice() public {
+        testCreatePoolOwnerCanCreateAPoolOnUniswap();
         vm.startPrank(owner);
-        factory.createPool(nonProfitOrg, sqrtPriceX96);
-        vm.expectRevert(Factory.ZeroAmount.selector);
-        factory.addLiquidity(0, 1000, nonProfitOrg);
+        vm.expectRevert(Factory.PoolAlreadyExists.selector);
+        factory.createPool(nonProfitOrg, 1, 1);
         vm.stopPrank();
-    }
-
-    function testAddLiquidityCannotAddLiquidityWithZeroAmount1() public {
-        vm.startPrank(owner);
-        factory.createPool(nonProfitOrg, sqrtPriceX96);
-        vm.expectRevert(Factory.ZeroAmount.selector);
-        factory.addLiquidity(1000, 0, nonProfitOrg);
-        vm.stopPrank();
-    }
-
-    function testAddLiquidityAddsLiquidity() public {
-        // 1. Owner creates the pool
-        uint256 amount1 = IERC20Metadata(fundraisingTokenAddress).balanceOf(owner); // amount of fundraising token
-        uint256 amount0 = 30_000_000_000; // amount of usdc
-
-        uint160 _sqrtPriceX96 = Helper.encodeSqrtPriceX96(amount1, amount0);
-
-        vm.startPrank(owner);
-        factory.createPool(nonProfitOrg, _sqrtPriceX96);
-        vm.stopPrank();
-
-        // 2. Fund the owner with some tokens
-        vm.startPrank(USDC_WHALE);
-        IERC20Metadata(usdc).transfer(address(factory), amount0);
-        vm.stopPrank();
-
-        vm.startPrank(owner);
-        IERC20Metadata(fundraisingTokenAddress).transfer(address(factory), amount1);
-        vm.stopPrank();
-
-        // 4. Add liquidity through factory
-        vm.startPrank(owner);
-        factory.addLiquidity(amount0, amount1, nonProfitOrg);
-        vm.stopPrank();
-
-        // 5. Verify liquidity was added (depends on your factory logic)
-        console.log("USDC balance (factory):", IERC20Metadata(usdc).balanceOf(address(factory)));
-        console.log(
-            "FundraisingToken balance (factory):", IERC20Metadata(fundraisingTokenAddress).balanceOf(address(factory))
-        );
     }
 
     function testSwapFundraisingToken() public {
-        testAddLiquidityAddsLiquidity();
+        testCreatePoolOwnerCanCreateAPoolOnUniswap();
 
         vm.startPrank(registryAddress);
 
         // transfer some amount to donation wallet
-
+        vm.roll(block.number + 10);
         TreasuryWallet treasury = TreasuryWallet(treasuryWalletAddress);
 
-        treasury.transferFunds();
+        bytes memory performData = abi.encode(true, false);
+
+        treasury.performUpkeep(performData);
 
         assert(IERC20Metadata(fundraisingTokenAddress).balanceOf(donationWalletAddress) > 0);
 
@@ -283,7 +369,7 @@ contract FactoryTest is Test {
 
         DonationWallet donation = DonationWallet(donationWalletAddress);
 
-        donation.swapFundraisingToken();
+        donation.performUpkeep(bytes(""));
 
         assert(IERC20Metadata(usdc).balanceOf(nonProfitOrg) > 0);
     }

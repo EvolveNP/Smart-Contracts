@@ -30,7 +30,7 @@ contract FundraisingTokenHook is BaseHook {
      * @param _fundraisingTokenAddress The address of the fundraising token.
      * Sets the fundraising token address, records the current timestamp as the launch time, and stores the current block number as the launch block.
      */
-    constructor(IPoolManager _poolManager, address _fundraisingTokenAddress) BaseHook(_poolManager) {
+    constructor(address _poolManager, address _fundraisingTokenAddress) BaseHook(IPoolManager(_poolManager)) {
         fundraisingTokenAddress = _fundraisingTokenAddress;
         luanchTimestamp = block.timestamp;
         launchBlock = block.number;

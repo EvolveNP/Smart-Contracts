@@ -24,9 +24,15 @@ abstract contract Swap is Initializable {
     uint256 public constant slippage = 5e16; // 5%
 
     error ZeroAddress();
+    error ZeroAmount();
 
     modifier nonZeroAddress(address _address) {
         if (_address == address(0)) revert ZeroAddress();
+        _;
+    }
+
+    modifier nonZeroAmount(uint256 _amount) {
+        if (_amount == 0) revert ZeroAmount();
         _;
     }
 
@@ -65,7 +71,7 @@ abstract contract Swap is Initializable {
         params[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: key,
-                zeroForOne: !_isCurrency0FundraisingToken,
+                zeroForOne: _isCurrency0FundraisingToken,
                 amountIn: amountIn,
                 amountOutMinimum: minAmountOut,
                 hookData: bytes("")

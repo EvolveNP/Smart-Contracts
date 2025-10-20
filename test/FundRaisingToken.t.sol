@@ -324,4 +324,7 @@ contract FundRaisingTokenTest is Test {
         assertEq(fundRaisingToken.balanceOf(receiver), amountToTransfer - _taxFee);
         assertEq(fundRaisingToken.balanceOf(treasuryAddress), treasuryBalanceBeforeTransfer + _taxFee);
     }
+
+    //TODO
+    function testFuzz_Transfer() public {}
 }
