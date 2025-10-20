@@ -22,6 +22,12 @@ import {FundraisingTokenHook} from "./Hook.sol";
 import {IPoolInitializer_v4} from "@uniswap/v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import {console} from "forge-std/console.sol";
+import {console2} from "forge-std/console2.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 
 /**
  * @title Factory Contract
@@ -41,6 +47,9 @@ contract Factory is Ownable2StepUpgradeable {
     error PoolAlreadyExists();
     error InvalidPairToken();
     error ZeroAmount();
+    error NotAdmin();
+    error EmergencyPauseAlreadySet();
+    error InvalidAmount0();
 
     struct FundRaisingAddresses {
         address fundraisingToken; // The address of the fundraising token
@@ -61,11 +70,14 @@ contract Factory is Ownable2StepUpgradeable {
     mapping(address => PoolKey) public poolKeys; // lp address => pool key:  store pool keys for easy access
     address public router; // The address of the uniswap universal router
     address public permit2; // The address of the uniswap permit2 contract
-    uint24 public constant defaultFee = 3000; // default fee tier for the pool
     int24 public constant defaultTickSpacing = 60; // default tick spacing for the pool
     address public poolManager; // The address of the uniswap v4 pool manager
     address public positionManager; // The address of the uniswap v4 position manager
     address public quoter; // Ther address of the uniswap v4 quoter
+    address public treasuryWalletBeacon; // treasury wallet beacon
+    address public donationWalletBeacon; // donatation wallet beacon
+    bool internal pauseAll; // pause all functionalities for all available vaults
+    address admin; // The address of the admin that is used to call some functions via multisig
 
     /**
      *  @notice Emitted when a new fundraising vault is created.
@@ -104,6 +116,10 @@ contract Factory is Ownable2StepUpgradeable {
      */
     event DonationEmergencyPauseSet(address owner, address donationWallet, bool pause);
 
+    event EmergencyPauseSet(bool pause);
+
+    event AdminChanged(address oldAdmin, address newAdmin);
+
     /**
      * @notice Ensures that the provided address is not the zero address.
      * @dev Reverts with `ZeroAddress()` if `_address` is the zero address.
@@ -126,6 +142,11 @@ contract Factory is Ownable2StepUpgradeable {
         _;
     }
 
+    modifier onlyAdmin() {
+        if (admin != msg.sender) revert NotAdmin();
+        _;
+    }
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -145,7 +166,8 @@ contract Factory is Ownable2StepUpgradeable {
         address _positionManager,
         address _router,
         address _permit2,
-        address _quoter
+        address _quoter,
+        address _admin
     )
         external
         initializer
@@ -155,13 +177,23 @@ contract Factory is Ownable2StepUpgradeable {
         nonZeroAddress(_router)
         nonZeroAddress(_permit2)
         nonZeroAddress(_quoter)
+        nonZeroAddress(_admin)
     {
+        __Ownable_init(msg.sender);
         __Ownable2Step_init();
         registryAddress = _registryAddress;
         poolManager = _poolManager;
         positionManager = _positionManager;
         router = _router;
         permit2 = _permit2;
+        // deploy treasury wallet beacon
+        address treasuryImplementation = address(new TreasuryWallet());
+        treasuryWalletBeacon = address(new UpgradeableBeacon(treasuryImplementation, msg.sender));
+        // deploy donation wallet beacon
+        address donationWalletImplementation = address(new DonationWallet());
+        donationWalletBeacon = address(new UpgradeableBeacon(donationWalletImplementation, msg.sender));
+        admin = _admin;
+        quoter = _quoter;
     }
 
     /**
@@ -176,26 +208,23 @@ contract Factory is Ownable2StepUpgradeable {
         string calldata _tokenName,
         string calldata _tokenSymbol,
         address _underlyingAddress,
-        address _owner
+        address _owner,
+        uint256 _taxFee,
+        uint256 _maximumThreshold,
+        uint256 _minimumHealthThreshhold,
+        uint256 _transferInterval,
+        uint256 _minLPHealthThreshhold,
+        int24 _tickSpacing
     ) external nonZeroAddress(_owner) nonZeroAddress(_underlyingAddress) onlyOwner {
         if (fundraisingAddresses[_owner].fundraisingToken != address(0)) {
             revert VaultAlreadyExists();
         }
         // deploy donation wallet
-        DonationWallet donationWallet = new DonationWallet();
-        donationWallet.initialize(address(this), _owner, router, poolManager, permit2, positionManager, quoter);
+        DonationWallet donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
+
         // deploy treasury wallet
-        TreasuryWallet treasuryWallet = new TreasuryWallet();
-        treasuryWallet.initialize(
-            address(donationWallet),
-            address(this),
-            registryAddress,
-            router,
-            poolManager,
-            permit2,
-            positionManager,
-            quoter
-        );
+        TreasuryWallet treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryWalletBeacon, "")));
+
         uint8 _decimals = 18;
         if (_underlyingAddress != address(0)) {
             // set the decimals of the fundraising token same as underlying token
@@ -211,15 +240,30 @@ contract Factory is Ownable2StepUpgradeable {
             address(treasuryWallet),
             address(donationWallet),
             address(this),
-            totalSupply * 10 ** _decimals
+            totalSupply * 10 ** _decimals,
+            _taxFee,
+            _maximumThreshold
         );
 
-        // set fundraising token in donation wallet
-        donationWallet.setFundraisingTokenAddress(address(fundraisingToken));
+        donationWallet.initialize(
+            address(this), _owner, router, poolManager, permit2, positionManager, quoter, address(fundraisingToken)
+        );
 
-        // set fundraising token in treasury wallet
-
-        treasuryWallet.setFundraisingToken(address(fundraisingToken));
+        treasuryWallet.initialize(
+            address(donationWallet),
+            address(this),
+            registryAddress,
+            router,
+            poolManager,
+            permit2,
+            positionManager,
+            quoter,
+            _minimumHealthThreshhold,
+            _transferInterval,
+            _minLPHealthThreshhold,
+            _tickSpacing,
+            address(fundraisingToken)
+        );
 
         fundraisingAddresses[_owner] = FundRaisingAddresses(
             address(fundraisingToken),
@@ -267,6 +311,14 @@ contract Factory is Ownable2StepUpgradeable {
         address _currency0 = _fundraisingAddresses.underlyingAddress;
         address _currency1 = _fundraisingAddresses.fundraisingToken;
 
+        if (_currency0 != address(0)) {
+            IERC20(_currency0).transferFrom(msg.sender, address(this), _amount0);
+        } else {
+            if (_amount0 != msg.value) revert InvalidAmount0();
+        }
+
+        IERC20(_currency1).transferFrom(msg.sender, address(this), _amount1);
+
         if (_currency0 > _currency1) {
             (_currency0, _currency1) = (_currency1, _currency0);
             (_amount0, _amount1) = (_amount1, _amount0);
@@ -277,8 +329,10 @@ contract Factory is Ownable2StepUpgradeable {
         Currency currency0 = Currency.wrap(_currency0);
         Currency currency1 = Currency.wrap(_currency1);
 
-        FundraisingTokenHook hook =
-            new FundraisingTokenHook(IPoolManager(poolManager), _fundraisingAddresses.fundraisingToken);
+        // deploy hook
+        IHooks hook = deployHook(_fundraisingAddresses.fundraisingToken);
+
+        // transfer assets to this contract;
 
         PoolKey memory pool =
             PoolKey({currency0: currency0, currency1: currency1, fee: 0, tickSpacing: defaultTickSpacing, hooks: hook});
@@ -343,6 +397,28 @@ contract Factory is Ownable2StepUpgradeable {
         DonationWallet donation = DonationWallet(fundraisingAddresses[_nonProfitOrgOwner].donationWallet);
         donation.emergencyPause(_pause);
         emit DonationEmergencyPauseSet(_nonProfitOrgOwner, address(donation), _pause);
+    }
+
+    /**
+     * @notice Enable or disable emergency pause across all treasury and donations wallet
+     * @param _pause true if to enable emergency pause across all treasury and donations wallet or false
+     * @dev Only called by the admin
+     */
+    function setEmergencyPause(bool _pause) external onlyAdmin {
+        if (pauseAll == _pause) revert EmergencyPauseAlreadySet();
+        pauseAll = _pause;
+
+        emit EmergencyPauseSet(_pause);
+    }
+
+    /**
+     * @notice Set new admin address
+     * @param _newAdmin The address of the admin
+     * @dev Only called by the owner
+     */
+    function setAdmin(address _newAdmin) external onlyOwner {
+        emit AdminChanged(admin, _newAdmin);
+        admin = _newAdmin;
     }
 
     /**
@@ -416,6 +492,19 @@ contract Factory is Ownable2StepUpgradeable {
 
         return
             abi.encodeWithSelector(IPositionManager.modifyLiquidities.selector, abi.encode(actions, params), deadline);
+    }
+
+    function deployHook(address _fundraisingToken) internal returns (IHooks) {
+        uint160 flags = uint160(Hooks.AFTER_SWAP_FLAG);
+
+        // Mine a salt that will produce a hook address with the correct flags
+        bytes memory constructorArgs = abi.encode(poolManager, _fundraisingToken);
+        (, bytes32 salt) =
+            HookMiner.find(address(this), flags, type(FundraisingTokenHook).creationCode, constructorArgs);
+
+        IHooks hook = new FundraisingTokenHook{salt: salt}(poolManager, _fundraisingToken);
+
+        return hook;
     }
 
     /**

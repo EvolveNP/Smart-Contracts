@@ -11,7 +11,6 @@ contract FundRaisingToken is ERC20 {
     error ZeroAmount();
     error OnlyTreasury();
     error TransferBlocked();
-    error OnlyFactory();
 
     /**
      * State Variables
@@ -19,11 +18,8 @@ contract FundRaisingToken is ERC20 {
     address public immutable lpManager; // The address of the liquidity pool manager
     address public immutable treasuryAddress; //The address of the treasury wallet
     address public immutable donationAddress; // The address of the donation wallet
-    uint256 public constant taxFee = 2e16; // The tax fee on each transaction 2% = 2e16 (in basis points, e.g. 1e16 = 1%)
-    uint256 public constant healthThreshold = 1e18; // The health threshold for the liquidity pool
-    uint256 public constant minimumThreshold = 15e16; // The minimum threshold for the liquidity pool 15% = 15e16
-    uint256 public constant maximumThreshold = 30e16; // The maximum threshold for the liquidity pool 30% = 30e16
-    uint256 public constant configurableTaxFee = 1e16; // A configurable tax fee on each transaction
+    uint256 public immutable taxFee; // The tax fee on each transaction 2% = 2e16 (in basis points, e.g. 1e16 = 1%)
+    uint256 public immutable maximumThreshold; // The maximum threshold for the liquidity pool 30% = 30e16
     address public immutable factoryAddress; // The address of the factory contract
     uint8 _decimals;
 
@@ -45,11 +41,6 @@ contract FundRaisingToken is ERC20 {
         _;
     }
 
-    modifier onlyFactory() {
-        if (msg.sender != factoryAddress) revert OnlyFactory();
-        _;
-    }
-
     /**
      *
      * @param name Name of the fundraising token
@@ -58,6 +49,8 @@ contract FundRaisingToken is ERC20 {
      * @param _treasuryAddress Address of the treasury wallet
      * @param _donationAddress Address of the donation wallet
      * @param _totalSupply Total supply of the fundraising token
+     * @param _maximumThreshold The maximum threshold for the liquidity pool ex: 30% = 30e16
+     * @param _taxFee The tax fee on each transaction 2% = 2e16 (in basis points, e.g. 1e16 = 1%
      */
     constructor(
         string memory name,
@@ -67,7 +60,9 @@ contract FundRaisingToken is ERC20 {
         address _treasuryAddress,
         address _donationAddress,
         address _factoryAddress,
-        uint256 _totalSupply
+        uint256 _totalSupply,
+        uint256 _maximumThreshold,
+        uint256 _taxFee
     )
         ERC20(name, symbol)
         nonZeroAddress(_lpManager)
@@ -81,6 +76,8 @@ contract FundRaisingToken is ERC20 {
         donationAddress = _donationAddress;
         factoryAddress = _factoryAddress;
         _decimals = decimals_;
+        maximumThreshold = _maximumThreshold;
+        taxFee = _taxFee;
         // mint 75% to LP manager 100% = 1e18
         _mint(lpManager, (_totalSupply * 75e16) / 1e18);
         // mint 25% to treasury wallet
