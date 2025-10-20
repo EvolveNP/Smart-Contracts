@@ -11,4 +11,6 @@ interface IFactory {
     function positionManager() external view returns (address);
     function poolManager() external view returns (address);
     function getSqrtPriceX96(address _owner) external returns (uint160);
+
+    function pauseAll() external view returns (bool);
 }

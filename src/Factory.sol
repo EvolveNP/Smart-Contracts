@@ -76,7 +76,7 @@ contract Factory is Ownable2StepUpgradeable {
     address public quoter; // Ther address of the uniswap v4 quoter
     address public treasuryWalletBeacon; // treasury wallet beacon
     address public donationWalletBeacon; // donatation wallet beacon
-    bool internal pauseAll; // pause all functionalities for all available vaults
+    bool public pauseAll; // pause all functionalities for all available vaults
     address admin; // The address of the admin that is used to call some functions via multisig
 
     /**

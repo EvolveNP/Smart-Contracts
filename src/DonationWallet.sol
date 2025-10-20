@@ -88,7 +88,8 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         view
         returns (bool upkeepNeeded, bytes memory performData)
     {
-        upkeepNeeded = !paused && IERC20(fundraisingTokenAddress).balanceOf(address(this)) > 0;
+        bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
+        upkeepNeeded = !emergencyPauseEnabled && IERC20(fundraisingTokenAddress).balanceOf(address(this)) > 0;
 
         performData = bytes("");
     }

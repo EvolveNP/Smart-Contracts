@@ -118,7 +118,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         uint256 lpCurrentThreshold = getCurrentLPHealthThreshold();
         bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());
         bool initiateAddLiqudity = (minLPHealthThreshhold > lpCurrentThreshold);
-        upkeepNeeded = !paused && (initiateTransfer || initiateAddLiqudity);
+        bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
+        upkeepNeeded = !emergencyPauseEnabled && (initiateTransfer || initiateAddLiqudity);
 
         if (upkeepNeeded) {
             performData = abi.encode(initiateTransfer, initiateAddLiqudity);
