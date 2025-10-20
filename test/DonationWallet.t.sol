@@ -83,7 +83,14 @@ contract DonationWalletTest is Test {
     function testConstructorRevertsOnZeroQuoterAddress() public {
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
-            factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, positionManager, address(0), fundraisingToken
+            factoryAddress,
+            nonProfitOrgAddress,
+            router,
+            poolManager,
+            permit2,
+            positionManager,
+            address(0),
+            fundraisingToken
         );
     }
 
