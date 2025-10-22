@@ -99,8 +99,8 @@ contract FundraisingTokenHook is BaseHook {
         ) isBuying = true;
 
         if (isBuying) {
-            isTransferBlocked(sender, _amountOut);
-            if (block.timestamp < luanchTimestamp + timeToHold) lastBuyTimestamp[sender] = block.timestamp;
+            isTransferBlocked(tx.origin, _amountOut);
+            if (block.timestamp < luanchTimestamp + timeToHold) lastBuyTimestamp[tx.origin] = block.timestamp;
         }
 
         return (BaseHook.afterSwap.selector, 0);

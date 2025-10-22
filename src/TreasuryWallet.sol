@@ -155,7 +155,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         // swap half of the amount in for currency0
         uint256 amountToAddToLP = (
             ((fundraisingToken.totalSupply() * minimumHealthThreshhold) / MULTIPLIER)
-                - IFactory(factoryAddress).getFundraisingTokenBalance(address(fundraisingToken))
+                - fundraisingToken.balanceOf(address(poolManager))
         ) / 2;
 
         address _owner = IDonationWallet(donationAddress).owner();

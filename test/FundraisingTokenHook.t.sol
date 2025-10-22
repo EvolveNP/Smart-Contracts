@@ -134,7 +134,6 @@ contract FundraisingTokenHookTest is Test {
 
         IERC20(usdc).approve(address(permit2), type(uint256).max);
         permit2.approve(usdc, address(router), amountIn, uint48(deadline));
-        console.log(address(this), "addr");
         vm.expectRevert(
             abi.encodeWithSelector(
                 CustomRevert.WrappedError.selector,
@@ -158,7 +157,6 @@ contract FundraisingTokenHookTest is Test {
         bytes[] memory inputs = new bytes[](1);
 
         vm.roll(block.number + 10);
-
         swap(amountIn, 1);
 
         // Encode V4Router actions
@@ -200,6 +198,48 @@ contract FundraisingTokenHookTest is Test {
         router.execute(commands, inputs, deadline);
     }
 
+    function testBuyTokensAgainAfterCoolDownPeriodPassed() public {
+        factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
+        vm.startPrank(USDC_WHALE);
+        key = factory.getPoolKey(factoryTest.nonProfitOrg());
+        uint128 amountIn = 100e6;
+        uint128 minAmountOut = 1;
+
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        bytes[] memory inputs = new bytes[](1);
+
+        vm.roll(block.number + 10);
+        swap(amountIn, 1);
+
+        // Encode V4Router actions
+        bytes memory actions =
+            abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
+
+        // Prepare parameters for each action
+        bytes[] memory params = new bytes[](3);
+        params[0] = abi.encode(
+            IV4Router.ExactInputSingleParams({
+                poolKey: key,
+                zeroForOne: true,
+                amountIn: amountIn,
+                amountOutMinimum: minAmountOut,
+                hookData: bytes("")
+            })
+        );
+
+        params[1] = abi.encode(key.currency0, amountIn);
+        params[2] = abi.encode(key.currency1, minAmountOut);
+
+        // Combine actions and params into inputs
+        inputs[0] = abi.encode(actions, params);
+        vm.warp(block.timestamp + 2 minutes);
+        uint256 deadline = block.timestamp + 20;
+
+        IERC20(usdc).approve(address(permit2), type(uint256).max);
+        permit2.approve(usdc, address(router), amountIn, uint48(deadline));
+        router.execute(commands, inputs, deadline);
+    }
+
     function testAfterSwapCannotBuyTokenIfBlockToHoldNotPassed() public {
         factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
         vm.startPrank(USDC_WHALE);
@@ -212,6 +252,34 @@ contract FundraisingTokenHookTest is Test {
         //  vm.expectRevert(FundraisingTokenHook.TransactionNotAllowed.selector);
         console2.logBytes4(FundraisingTokenHook.TransactionNotAllowed.selector);
         swap(uint128(amountToSwap), uint128(minAmountOut));
+    }
+
+    function testBuyAnyTokensAmountAfterHoldingTimePassed() public {
+        factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
+        vm.startPrank(USDC_WHALE);
+        key = factory.getPoolKey(factoryTest.nonProfitOrg());
+        uint128 amountIn = 100e6;
+
+        // first buy
+        vm.roll(block.number + 10);
+        uint256 _minAmountOut1 = getMinAmountOut(key, true, amountIn, bytes(""));
+        swap(amountIn, uint128(_minAmountOut1));
+
+        //second buy after cool down period passed
+        vm.warp(block.timestamp + 2 minutes);
+
+        uint256 _minAmountOut2 = getMinAmountOut(key, true, amountIn, bytes(""));
+
+        swap(amountIn, uint128(_minAmountOut2));
+
+        // third buy after holding time passed
+        vm.warp(block.timestamp + 2 hours);
+
+        uint128 amountIn3 = 5000e6;
+
+        uint256 _minAmountOut = getMinAmountOut(key, true, amountIn3, bytes(""));
+
+        swap(amountIn3, uint128(_minAmountOut));
     }
 
     function swap(uint128 amountIn, uint128 minAmountOut) internal {
@@ -241,17 +309,16 @@ contract FundraisingTokenHookTest is Test {
         // Combine actions and params into inputs
         inputs[0] = abi.encode(actions, params);
 
-        uint256 deadline = block.timestamp + 20;
+        uint256 deadline = block.timestamp + 40;
 
         IERC20(usdc).approve(address(permit2), type(uint256).max);
         permit2.approve(usdc, address(router), amountIn, uint48(deadline));
 
         router.execute(commands, inputs, deadline);
 
-        uint256 amountOut = key.currency0.balanceOf(address(this));
+        uint256 amountOut = key.currency1.balanceOf(address(this));
 
-        amountOut = key.currency0.balanceOf(USDC_WHALE);
-        console.log(amountOut, "amount");
+        amountOut = key.currency1.balanceOf(USDC_WHALE);
         require(amountOut >= minAmountOut, "Insufficient output amount");
     }
 
