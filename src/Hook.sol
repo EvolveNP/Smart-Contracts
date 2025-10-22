@@ -12,6 +12,9 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
 contract FundraisingTokenHook is BaseHook {
     error TransactionNotAllowed();
+    error BlockToHoldNotPassed();
+    error AmountGreaterThanMaxBuyAmount();
+    error CoolDownPeriodNotPassed();
 
     uint256 internal luanchTimestamp; // The timestamp when the token was launched
     uint256 internal constant perWalletCoolDownPeriod = 1 minutes;
@@ -88,15 +91,17 @@ contract FundraisingTokenHook is BaseHook {
         bool isFundraisingTokenIsCurrencyZero = currency0 == fundraisingTokenAddress;
 
         bool isBuying;
-        int128 _amountOut = delta.amount0();
+        int128 _amountOut = params.zeroForOne ? delta.amount1() : delta.amount0();
+
         if (
             (isFundraisingTokenIsCurrencyZero && !params.zeroForOne)
                 || (!isFundraisingTokenIsCurrencyZero && params.zeroForOne)
         ) isBuying = true;
 
-        if (isBuying && isTransferBlocked(sender, _amountOut)) revert TransactionNotAllowed();
-
-        if (block.timestamp < luanchTimestamp + timeToHold) lastBuyTimestamp[sender] = block.timestamp;
+        if (isBuying) {
+            isTransferBlocked(tx.origin, _amountOut);
+            if (block.timestamp < luanchTimestamp + timeToHold) lastBuyTimestamp[tx.origin] = block.timestamp;
+        }
 
         return (BaseHook.afterSwap.selector, 0);
     }
@@ -106,7 +111,6 @@ contract FundraisingTokenHook is BaseHook {
      * @dev Blocks transfers during the initial launch period and enforces per-wallet cooldowns and max buy size restrictions.
      * @param _account The address of the account attempting the transfer.
      * @param _amount The amount being transferred.
-     * @return Returns true if the transfer is blocked, false otherwise.
      * @custom:netspec
      * - If the current block is within the launch protection period, returns true.
      * - If the current timestamp is within the time to hold after launch:
@@ -114,22 +118,20 @@ contract FundraisingTokenHook is BaseHook {
      *     - Blocks transfers if the account is within the cooldown period after their last buy.
      * - Otherwise, returns false.
      */
-    function isTransferBlocked(address _account, int128 _amount) internal view returns (bool) {
+    function isTransferBlocked(address _account, int128 _amount) internal view {
         // Block transfers during launch protection
-        if (block.number < launchBlock + blocksToHold) return true;
+        if (block.number < launchBlock + blocksToHold) revert BlockToHoldNotPassed();
 
         if (block.timestamp < luanchTimestamp + timeToHold) {
             // Block transfers if within time to hold after launch
             uint256 lastBuy = lastBuyTimestamp[_account];
 
-            uint256 _maxBuySize = IERC20(fundraisingTokenAddress).totalSupply() * maxBuySize / 1e18;
+            uint256 _maxBuySize = (IERC20(fundraisingTokenAddress).totalSupply() * maxBuySize) / 1e18;
 
-            if (uint256(uint128(_amount)) > _maxBuySize) return true;
+            if (uint256(uint128(_amount)) > _maxBuySize) revert AmountGreaterThanMaxBuyAmount();
 
             // Block transfers if within cooldown
-            if (lastBuy != 0 && block.timestamp < lastBuy + perWalletCoolDownPeriod) return true;
-            return false;
+            if (lastBuy != 0 && block.timestamp < lastBuy + perWalletCoolDownPeriod) revert CoolDownPeriodNotPassed();
         }
-        return false;
     }
 }

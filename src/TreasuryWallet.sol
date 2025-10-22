@@ -118,7 +118,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         uint256 lpCurrentThreshold = getCurrentLPHealthThreshold();
         bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());
         bool initiateAddLiqudity = (minLPHealthThreshhold > lpCurrentThreshold);
-        upkeepNeeded = !paused && (initiateTransfer || initiateAddLiqudity);
+        bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
+        upkeepNeeded = !emergencyPauseEnabled && (initiateTransfer || initiateAddLiqudity);
 
         if (upkeepNeeded) {
             performData = abi.encode(initiateTransfer, initiateAddLiqudity);
@@ -154,7 +155,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         // swap half of the amount in for currency0
         uint256 amountToAddToLP = (
             ((fundraisingToken.totalSupply() * minimumHealthThreshhold) / MULTIPLIER)
-                - IFactory(factoryAddress).getFundraisingTokenBalance(address(fundraisingToken))
+                - fundraisingToken.balanceOf(address(poolManager))
         ) / 2;
 
         address _owner = IDonationWallet(donationAddress).owner();
