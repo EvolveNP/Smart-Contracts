@@ -18,8 +18,9 @@ import {IV4Quoter} from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
 import {CustomRevert} from "@uniswap/v4-periphery/lib/v4-core/src/libraries/CustomRevert.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {BuyFundraisingTokens} from "./BuyTokens.sol";
 
-contract FundraisingTokenHookTest is Test {
+contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
     uint256 mainnetFork;
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
     FactoryTest factoryTest;
@@ -157,7 +158,7 @@ contract FundraisingTokenHookTest is Test {
         bytes[] memory inputs = new bytes[](1);
 
         vm.roll(block.number + 10);
-        swap(amountIn, 1);
+        buyFundraisingToken(key, amountIn, 1, permit2, router);
 
         // Encode V4Router actions
         bytes memory actions =
@@ -209,7 +210,7 @@ contract FundraisingTokenHookTest is Test {
         bytes[] memory inputs = new bytes[](1);
 
         vm.roll(block.number + 10);
-        swap(amountIn, 1);
+        buyFundraisingToken(key, amountIn, 1, permit2, router);
 
         // Encode V4Router actions
         bytes memory actions =
@@ -247,11 +248,11 @@ contract FundraisingTokenHookTest is Test {
 
         uint256 amountToSwap = 100e6;
         vm.roll(block.number + 10);
-        uint256 minAmountOut = getMinAmountOut(key, true, uint128(amountToSwap), bytes(""));
+        uint256 minAmountOut = _getMinAmountOut(key, true, uint128(amountToSwap), bytes(""), qouter, slippage);
         console.log(minAmountOut, "min");
         //  vm.expectRevert(FundraisingTokenHook.TransactionNotAllowed.selector);
         console2.logBytes4(FundraisingTokenHook.TransactionNotAllowed.selector);
-        swap(uint128(amountToSwap), uint128(minAmountOut));
+        buyFundraisingToken(key, uint128(amountToSwap), uint128(minAmountOut), permit2, router);
     }
 
     function testBuyAnyTokensAmountAfterHoldingTimePassed() public {
@@ -262,79 +263,23 @@ contract FundraisingTokenHookTest is Test {
 
         // first buy
         vm.roll(block.number + 10);
-        uint256 _minAmountOut1 = getMinAmountOut(key, true, amountIn, bytes(""));
-        swap(amountIn, uint128(_minAmountOut1));
+        uint256 _minAmountOut1 = _getMinAmountOut(key, true, amountIn, bytes(""), qouter, slippage);
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router);
 
         //second buy after cool down period passed
         vm.warp(block.timestamp + 2 minutes);
 
-        uint256 _minAmountOut2 = getMinAmountOut(key, true, amountIn, bytes(""));
+        uint256 _minAmountOut2 = _getMinAmountOut(key, true, amountIn, bytes(""), qouter, slippage);
 
-        swap(amountIn, uint128(_minAmountOut2));
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut2), permit2, router);
 
         // third buy after holding time passed
         vm.warp(block.timestamp + 2 hours);
 
         uint128 amountIn3 = 5000e6;
 
-        uint256 _minAmountOut = getMinAmountOut(key, true, amountIn3, bytes(""));
+        uint256 _minAmountOut = _getMinAmountOut(key, true, amountIn3, bytes(""), qouter, slippage);
 
-        swap(amountIn3, uint128(_minAmountOut));
-    }
-
-    function swap(uint128 amountIn, uint128 minAmountOut) internal {
-        // Encode the Universal Router command
-        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
-        bytes[] memory inputs = new bytes[](1);
-
-        // Encode V4Router actions
-        bytes memory actions =
-            abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
-
-        // Prepare parameters for each action
-        bytes[] memory params = new bytes[](3);
-        params[0] = abi.encode(
-            IV4Router.ExactInputSingleParams({
-                poolKey: key,
-                zeroForOne: true,
-                amountIn: amountIn,
-                amountOutMinimum: minAmountOut,
-                hookData: bytes("")
-            })
-        );
-
-        params[1] = abi.encode(key.currency0, amountIn);
-        params[2] = abi.encode(key.currency1, minAmountOut);
-
-        // Combine actions and params into inputs
-        inputs[0] = abi.encode(actions, params);
-
-        uint256 deadline = block.timestamp + 40;
-
-        IERC20(usdc).approve(address(permit2), type(uint256).max);
-        permit2.approve(usdc, address(router), amountIn, uint48(deadline));
-
-        router.execute(commands, inputs, deadline);
-
-        uint256 amountOut = key.currency1.balanceOf(address(this));
-
-        amountOut = key.currency1.balanceOf(USDC_WHALE);
-        require(amountOut >= minAmountOut, "Insufficient output amount");
-    }
-
-    function getMinAmountOut(PoolKey memory _key, bool _zeroForOne, uint128 _exactAmount, bytes memory _hookData)
-        internal
-        returns (uint256 minAmountAmount)
-    {
-        IV4Quoter.QuoteExactSingleParams memory params = IV4Quoter.QuoteExactSingleParams({
-            poolKey: _key,
-            zeroForOne: _zeroForOne,
-            exactAmount: _exactAmount,
-            hookData: _hookData
-        });
-
-        (uint256 amountOut,) = qouter.quoteExactInputSingle(params);
-
-        return (amountOut * slippage) / 1e18;
+        buyFundraisingToken(key, amountIn3, uint128(_minAmountOut), permit2, router);
     }
 }

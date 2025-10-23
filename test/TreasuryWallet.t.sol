@@ -11,9 +11,16 @@ import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol"
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {UniversalRouter} from "@uniswap/universal-router/contracts/UniversalRouter.sol";
+import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
+import {IV4Quoter} from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
+import {CustomRevert} from "@uniswap/v4-periphery/lib/v4-core/src/libraries/CustomRevert.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Factory} from "../src/Factory.sol";
+import {FactoryTest} from "./Factory.t.sol";
+import {BuyFundraisingTokens} from "./BuyTokens.sol";
 
-contract TreasuryWalletTest is Test {
+contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     TreasuryWallet public treasuryWallet;
     FundRaisingToken public fundRaisingToken;
 
@@ -372,7 +379,7 @@ contract TreasuryWalletTest is Test {
         assertEq(performData, _performData);
     }
 
-    function testCheckUpkeepReturnsUpKeepNeededTrueAndInitiateAddLiquidityAndInitiateTransferTrue() public {
+    function test_CheckUpkeep_Returns_UpKeepNeeded_True_And_InitiateAddLiquidity_And_InitiateTransfer_True() public {
         vm.warp(31 days);
         vm.startPrank(LP_MANAGER);
         uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * MIN_LP_HEALTH) / MULTIPLIER;
@@ -403,5 +410,35 @@ contract TreasuryWalletTest is Test {
             treasuryBalanceBeforeTransfer - (2 * amountToTransferAndBurn)
         );
         vm.stopPrank();
+    }
+
+    function testPerformUpKeepAddLiquidityToLPToAdjustLPHealthIfInitiateAddLiquidityIsTrue() public {
+        FactoryTest factoryTest = new FactoryTest();
+        factoryTest.setUp();
+        factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
+        Factory factory = factoryTest.factory();
+        address nonProfitOrg = address(0x7);
+        (,, address treasury,,,,,) = factory.fundraisingAddresses(nonProfitOrg);
+        address registry = factoryTest.registryAddress();
+        // buy tokens to make lp under health
+        address USDC_WHALE = factoryTest.USDC_WHALE();
+
+        vm.startPrank(USDC_WHALE);
+
+        uint128 amountToSwap = 200000e6; // to make the LP un healthy
+        PoolKey memory key = factory.getPoolKey(factoryTest.nonProfitOrg());
+        IPermit2 permit2 = IPermit2(factory.permit2());
+        UniversalRouter router = UniversalRouter(payable(factory.router()));
+        IV4Quoter qouter = IV4Quoter(factory.quoter());
+        uint256 slippage = 5e16;
+        vm.roll(block.number + 100);
+        vm.warp(block.timestamp + 3 hours);
+        uint256 minAmountOut = _getMinAmountOut(key, true, amountToSwap, bytes(""), qouter, slippage);
+        console.log(uint128(minAmountOut), "min");
+        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router);
+        vm.startPrank(registry);
+        TreasuryWallet treasuryInstance = TreasuryWallet(treasury);
+        bytes memory performData = abi.encode(false, true);
+        treasuryInstance.performUpkeep(performData);
     }
 }

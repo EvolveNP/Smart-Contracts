@@ -6,6 +6,9 @@ import {DonationWallet} from "../src/DonationWallet.sol";
 import {Swap} from "../src/abstracts/Swap.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
+import {Factory} from "../src/Factory.sol";
 
 contract DonationWalletTest is Test {
     DonationWallet public donationWallet;
@@ -17,14 +20,32 @@ contract DonationWalletTest is Test {
     address public constant positionManager = address(0x10);
     address public constant quoter = address(0x11);
     address public constant fundraisingToken = address(0x12);
+    address donationWalletImplementation;
+    address donationWalletBeacon;
+    Factory factory;
 
     function setUp() public {
-        address donationWalletImplementation = address(new DonationWallet());
-        address donationWalletBeacon = address(new UpgradeableBeacon(donationWalletImplementation, msg.sender));
+        donationWalletImplementation = address(new DonationWallet());
+        donationWalletBeacon = address(new UpgradeableBeacon(donationWalletImplementation, msg.sender));
         donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
+        address factoryImplementation = address(new Factory());
+        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, address(30), bytes(""))));
+        factory.initialize(address(20), poolManager, positionManager, router, permit2, quoter, address(21));
+
+        donationWallet.initialize(
+            address(factory),
+            nonProfitOrgAddress,
+            router,
+            poolManager,
+            permit2,
+            positionManager,
+            quoter,
+            fundraisingToken
+        );
     }
 
     function testConstructorRevertsOnZeroFactoryAddress() public {
+        donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
             address(0), nonProfitOrgAddress, router, poolManager, permit2, positionManager, quoter, fundraisingToken
@@ -32,6 +53,7 @@ contract DonationWalletTest is Test {
     }
 
     function testConstructorRevertsOnZeroNonProfitOrgAddress() public {
+        donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
             factoryAddress, address(0), router, poolManager, permit2, positionManager, quoter, fundraisingToken
@@ -39,6 +61,7 @@ contract DonationWalletTest is Test {
     }
 
     function testConstructorRevertsOnZeroRouterAddress() public {
+        donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
             factoryAddress,
@@ -53,6 +76,7 @@ contract DonationWalletTest is Test {
     }
 
     function testConstructorRevertsOnZeroPoolManagerAddress() public {
+        donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
             factoryAddress, nonProfitOrgAddress, router, address(0), permit2, positionManager, quoter, fundraisingToken
@@ -60,6 +84,7 @@ contract DonationWalletTest is Test {
     }
 
     function testConstructorRevertsOnZeroPermit2Address() public {
+        donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
             factoryAddress,
@@ -74,6 +99,7 @@ contract DonationWalletTest is Test {
     }
 
     function testConstructorRevertsOnZeroPositionManagerAddress() public {
+        donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
             factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, address(0), quoter, fundraisingToken
@@ -81,6 +107,7 @@ contract DonationWalletTest is Test {
     }
 
     function testConstructorRevertsOnZeroQuoterAddress() public {
+        donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
             factoryAddress,
@@ -95,6 +122,7 @@ contract DonationWalletTest is Test {
     }
 
     function testConstructorRevertsOnZeroFundraisingAddress() public {
+        donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
             factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, positionManager, quoter, address(0)
@@ -102,6 +130,7 @@ contract DonationWalletTest is Test {
     }
 
     function testConstructorSetsStateVariables() public {
+        donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
         donationWallet.initialize(
             factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, positionManager, quoter, fundraisingToken
         );
@@ -111,6 +140,39 @@ contract DonationWalletTest is Test {
         assertEq(address(donationWallet.poolManager()), poolManager);
         assertEq(address(donationWallet.permit2()), permit2);
         assertEq(address(donationWallet.positionManager()), positionManager);
-        //     assertEq(address(donationWallet.fundraisingTokenAddress()), fundraisingToken);
+        vm.stopPrank();
     }
+
+    function test_emergencyPuase_only_called_by_factory() public {
+        vm.startPrank(address(20));
+        vm.expectRevert(DonationWallet.NotFactory.selector);
+        donationWallet.emergencyPause(true);
+        vm.stopPrank();
+    }
+
+    function testEmergencyPauseCannotSetSameEmergencyStatusTwice() public {
+        vm.startPrank(address(factory));
+        donationWallet.emergencyPause(true);
+        vm.expectRevert(DonationWallet.EmergencyPauseAlreadySet.selector);
+        donationWallet.emergencyPause(true);
+    }
+
+    function testCheckUpKeepReturnsFalseIfEmergencyPauseEnabledInDonation() public {
+        vm.startPrank(address(factory));
+        donationWallet.emergencyPause(true);
+        (bool upkeepNeeded,) = donationWallet.checkUpkeep(bytes(""));
+        assertEq(upkeepNeeded, false);
+    }
+
+    function testCheckUpKeepReturnsFalseIfEmergencyPauseEnabledFromFactory() public {
+        vm.startPrank(address(21));
+        factory.setEmergencyPause(true);
+        (bool upkeepNeeded,) = donationWallet.checkUpkeep(bytes(""));
+        assertEq(upkeepNeeded, false);
+    }
+
+    // function testCheckUpKeepReturnsFalseIfNoFundraisingTokenAvailable() public view {
+    //     (bool upkeepNeeded,) = donationWallet.checkUpkeep(bytes(""));
+    //     assertEq(upkeepNeeded, false);
+    // }
 }

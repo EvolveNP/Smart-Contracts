@@ -370,7 +370,7 @@ contract Factory is Ownable2StepUpgradeable {
      */
     function setTreasuryEmergencyPause(address _nonProfitOrgOwner, bool _pause)
         external
-        onlyOwner
+        onlyOwner // change to nonprofit
         nonZeroAddress(_nonProfitOrgOwner)
     {
         TreasuryWallet treasury = TreasuryWallet(fundraisingAddresses[_nonProfitOrgOwner].treasuryWallet);

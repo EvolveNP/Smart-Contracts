@@ -37,7 +37,7 @@ contract FactoryTest is Test {
     string tokenSymbol = "FTN";
     uint256 taxFee = 2e16; // 2%
     uint256 maximumThreshold = 30e16; // 30%
-    uint256 minimumHealthThreshhold = 7e16; // 7%
+    uint256 minimumHealthThreshhold = 15e16; // 7%
     uint256 transferInterval = 30 days;
     uint256 minLPHealthThreshhold = 5e16; // 5%
     int24 tickSpacing = 60;
