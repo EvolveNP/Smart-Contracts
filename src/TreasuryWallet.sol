@@ -310,6 +310,5 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     function emergencyPause(bool _pause) external onlyFactory {
         if (paused == _pause) revert EmergencyPauseAlreadySet();
         paused = _pause;
-        emit Paused(_pause);
     }
 }

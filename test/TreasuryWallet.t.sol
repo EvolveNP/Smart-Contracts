@@ -418,7 +418,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
         Factory factory = factoryTest.factory();
         address nonProfitOrg = address(0x7);
-        (,, address treasury,,,,,) = factory.fundraisingAddresses(nonProfitOrg);
+        (,, address treasury,,,,) = factory.protocols(nonProfitOrg);
         address registry = factoryTest.registryAddress();
         // buy tokens to make lp under health
         address USDC_WHALE = factoryTest.USDC_WHALE();
