@@ -12,6 +12,9 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 import {Helper} from "../src/libraries/Helper.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
 contract FactoryTest is Test {
     Factory public factory;
@@ -37,10 +40,12 @@ contract FactoryTest is Test {
     string tokenSymbol = "FTN";
     uint256 taxFee = 2e16; // 2%
     uint256 maximumThreshold = 30e16; // 30%
-    uint256 minimumHealthThreshhold = 7e16; // 7%
+    uint256 minimumHealthThreshhold = 5e16; // 7%
     uint256 transferInterval = 30 days;
     uint256 minLPHealthThreshhold = 5e16; // 5%
     int24 tickSpacing = 60;
+
+    address nonProfitOrg2 = address(0x27);
 
     function setUp() public {
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
@@ -64,9 +69,27 @@ contract FactoryTest is Test {
             tickSpacing
         );
 
-        (fundraisingTokenAddress,, treasuryWalletAddress, donationWalletAddress,,,,) =
-            factory.fundraisingAddresses(nonProfitOrg);
+        factory.createFundraisingVault(
+            "FundraisingToken",
+            "FTN",
+            address(0),
+            nonProfitOrg2,
+            taxFee,
+            maximumThreshold,
+            minimumHealthThreshhold,
+            transferInterval,
+            minLPHealthThreshhold,
+            tickSpacing
+        );
+
+        (fundraisingTokenAddress,, treasuryWalletAddress, donationWalletAddress,,,) = factory.protocols(nonProfitOrg);
         vm.stopPrank();
+    }
+
+    function testCannotInitializeImplementation() public {
+        Factory factoryImplementation = new Factory();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        factoryImplementation.initialize(registryAddress, poolManager, positionManager, router, permit2, quoter, admin);
     }
 
     function testInitializeRevertsOnZeroRegistryAddress() public {
@@ -182,19 +205,19 @@ contract FactoryTest is Test {
         vm.stopPrank();
     }
 
-    function testCreateFundraisingVaultRevertsOnUnderlyingAssetAddress() public {
+    function testCreateFundraisingVaultRevertsIfMinLPHealthIsLessThanFivePercent() public {
         vm.prank(owner);
-        vm.expectRevert(Factory.ZeroAddress.selector);
+        vm.expectRevert(Factory.InvlidLPHealthThreshold.selector);
         factory.createFundraisingVault(
             "TokenName",
             "TKN",
-            address(0),
-            owner,
+            usdc,
+            nonProfitOrg,
             taxFee,
             maximumThreshold,
             minimumHealthThreshhold,
             transferInterval,
-            minLPHealthThreshhold,
+            45e15, //4.5%
             tickSpacing
         );
         vm.stopPrank();
@@ -232,8 +255,7 @@ contract FactoryTest is Test {
             minLPHealthThreshhold,
             tickSpacing
         );
-        (address fundraisingToken,, address treasuryWallet, address donationWallet,,,,) =
-            factory.fundraisingAddresses(address(30));
+        (address fundraisingToken,, address treasuryWallet, address donationWallet,,,) = factory.protocols(address(30));
         assert(fundraisingToken != address(0));
         assert(donationWallet != address(0));
         assert(treasuryWallet != address(0));
@@ -291,6 +313,19 @@ contract FactoryTest is Test {
         vm.stopPrank();
     }
 
+    function testCreatePoolCannotCreateIfEtherPassedIsNotEqualToAmount0() public {
+        vm.prank(owner);
+        uint256 amount0 = 7 ether; // amount of Eth
+        (address fundraisingTokenAddress2,,,,,,) = factory.protocols(nonProfitOrg2);
+        uint256 amount1 = IERC20Metadata(fundraisingTokenAddress2).balanceOf(owner); // amount of fundraising token
+
+        vm.startPrank(owner);
+        IERC20Metadata(fundraisingTokenAddress2).approve(address(factory), amount1);
+        vm.expectRevert(Factory.InvalidAmount0.selector);
+        factory.createPool(nonProfitOrg2, amount0, amount1);
+        vm.stopPrank();
+    }
+
     function testCreatePoolCannotCreatePoolIfVaultNotCreated() public {
         vm.prank(owner);
         vm.expectRevert(Factory.FundraisingVaultNotCreated.selector);
@@ -302,6 +337,50 @@ contract FactoryTest is Test {
         vm.prank(address(0x10));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
         factory.createPool(owner, 1, 1);
+        vm.stopPrank();
+    }
+
+    function testCreatePoolSwapsCurrienciesIfCurrency0IsGreaterThanCurrency1() public {
+        vm.startPrank(owner);
+        address nonProfitOrg3 = address(0x100);
+        factory.createFundraisingVault(
+            "FundraisingToken",
+            "FTN",
+            usdc,
+            nonProfitOrg3,
+            taxFee,
+            maximumThreshold,
+            minimumHealthThreshhold,
+            transferInterval,
+            minLPHealthThreshhold,
+            tickSpacing
+        );
+
+        (address _fundraisingTokenAddress,,,,,,) = factory.protocols(nonProfitOrg3);
+
+        vm.stopPrank();
+
+        uint256 amount0 = 100_000_000_000; // amount of usdc
+        uint256 amount1 = IERC20Metadata(_fundraisingTokenAddress).balanceOf(owner); // amount of fundraising token
+
+        vm.startPrank(USDC_WHALE);
+
+        IERC20Metadata(usdc).transfer(owner, amount0);
+        vm.stopPrank();
+
+        uint256 tolerance = 2_200; // add some tolerance due to precision
+
+        vm.startPrank(owner);
+        IERC20Metadata(usdc).approve(address(factory), amount0);
+        IERC20Metadata(_fundraisingTokenAddress).approve(address(factory), amount1);
+        vm.expectEmit(true, true, true, false);
+        emit Factory.LiquidityPoolCreated(usdc, _fundraisingTokenAddress, nonProfitOrg);
+        factory.createPool(nonProfitOrg3, amount0, amount1);
+        assertApproxEqAbs(IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager), amount1, tolerance);
+        assertEq(IERC20Metadata(usdc).balanceOf(address(factory)), 0);
+        PoolKey memory key = factory.getPoolKey(nonProfitOrg3);
+        assertEq(Currency.unwrap(key.currency0), _fundraisingTokenAddress);
+        assertEq(Currency.unwrap(key.currency1), usdc);
         vm.stopPrank();
     }
 
@@ -321,6 +400,8 @@ contract FactoryTest is Test {
         vm.expectEmit(true, true, true, false);
         emit Factory.LiquidityPoolCreated(usdc, fundraisingTokenAddress, nonProfitOrg);
         factory.createPool(nonProfitOrg, amount0, amount1);
+        assertEq(IERC20Metadata(fundraisingTokenAddress).balanceOf(poolManager), amount1 - 1);
+        assertEq(IERC20Metadata(usdc).balanceOf(address(factory)), 0);
         vm.stopPrank();
     }
 
@@ -356,5 +437,63 @@ contract FactoryTest is Test {
         donation.performUpkeep(bytes(""));
 
         assert(IERC20Metadata(usdc).balanceOf(nonProfitOrg) > 0);
+    }
+
+    function testCreatePoolOwnerCanCreatePoolUsingEtherAsUnderlyingToken() public {
+        vm.prank(owner);
+        uint256 amount0 = 7 ether; // amount of Eth
+        (address fundraisingTokenAddress2,,,,,,) = factory.protocols(nonProfitOrg2);
+        uint256 amount1 = IERC20Metadata(fundraisingTokenAddress2).balanceOf(owner); // amount of fundraising token
+
+        vm.deal(owner, amount0);
+
+        console.log(owner.balance, "owner balance");
+        uint256 tolerance = 2_200; // add some tolerance due to precision
+
+        vm.startPrank(owner);
+        IERC20Metadata(fundraisingTokenAddress2).approve(address(factory), amount1);
+        vm.expectEmit(true, true, true, false);
+        emit Factory.LiquidityPoolCreated(address(0), fundraisingTokenAddress, nonProfitOrg);
+        factory.createPool{value: amount0}(nonProfitOrg2, amount0, amount1);
+        // amount should be added as a liquidity
+        assertEq(address(factory).balance, 0);
+        assertApproxEqAbs(IERC20Metadata(fundraisingTokenAddress2).balanceOf(address(poolManager)), amount1, tolerance);
+        vm.stopPrank();
+    }
+
+    function testSetTreasuryEmergencyPauseRevertsIfNonProfitOrgAddressIsZeroAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.setTreasuryEmergencyPause(address(0), true);
+    }
+
+    function testSetTreasuryEmergencyPauseRevertsIfNotCalledByNonProfitOrg() public {
+        vm.expectRevert(Factory.OnlyCalledByNonProfitOrg.selector);
+        factory.setTreasuryEmergencyPause(nonProfitOrg, true);
+    }
+
+    function testSetTreasuryEmergencyPauseEmitsTreasuryEmergencyPauseSetEvent() public {
+        vm.startPrank(nonProfitOrg);
+        vm.expectEmit(true, true, false, false);
+
+        emit Factory.TreasuryEmergencyPauseSet(nonProfitOrg, treasuryWalletAddress, true);
+        factory.setTreasuryEmergencyPause(nonProfitOrg, true);
+    }
+
+    function testSetDonationEmergencyPauseRevertsIfNonProfitOrgAddressIsZeroAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.setDonationEmergencyPause(address(0), true);
+    }
+
+    function testSetDonationEmergencyPauseRevertsIfNotCalledByNonProfitOrg() public {
+        vm.expectRevert(Factory.OnlyCalledByNonProfitOrg.selector);
+        factory.setDonationEmergencyPause(nonProfitOrg, true);
+    }
+
+    function testSetDonationEmergencyPauseEmitsDonationEmergencyPauseSetEvent() public {
+        vm.startPrank(nonProfitOrg);
+        vm.expectEmit(true, true, false, false);
+
+        emit Factory.DonationEmergencyPauseSet(nonProfitOrg, donationWalletAddress, true);
+        factory.setDonationEmergencyPause(nonProfitOrg, true);
     }
 }

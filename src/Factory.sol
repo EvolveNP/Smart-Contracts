@@ -2,9 +2,6 @@
 pragma solidity 0.8.26;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {FundRaisingToken} from "./FundRaisingToken.sol";
-import {TreasuryWallet} from "./TreasuryWallet.sol";
-import {DonationWallet} from "./DonationWallet.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
@@ -15,14 +12,17 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {Helper} from "./libraries/Helper.sol";
-import {FundraisingTokenHook} from "./Hook.sol";
 import {IPoolInitializer_v4} from "@uniswap/v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {FundRaisingToken} from "./FundRaisingToken.sol";
+import {TreasuryWallet} from "./TreasuryWallet.sol";
+import {DonationWallet} from "./DonationWallet.sol";
+import {Helper} from "./libraries/Helper.sol";
+import {FundraisingTokenHook} from "./Hook.sol";
 
 /**
  * @title Factory Contract
@@ -31,8 +31,6 @@ import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
  * @custom:netspec The Factory contract enables the creation and management of contract instances, with secure ownership transfer mechanisms.
  */
 contract Factory is Ownable2StepUpgradeable {
-    using LiquidityAmounts for uint160;
-
     /**
      * Errors
      */
@@ -45,8 +43,10 @@ contract Factory is Ownable2StepUpgradeable {
     error NotAdmin();
     error EmergencyPauseAlreadySet();
     error InvalidAmount0();
+    error InvlidLPHealthThreshold();
+    error OnlyCalledByNonProfitOrg();
 
-    struct FundRaisingAddresses {
+    struct FundraisingProtocol {
         address fundraisingToken; // The address of the fundraising token
         address underlyingAddress; // The address of the underlying token (e.g., USDC, ETH)
         address treasuryWallet; // the address of the treasury wallet
@@ -54,12 +54,11 @@ contract Factory is Ownable2StepUpgradeable {
         address hook; // The address of the hook
         address owner; // the non profit org wallet address
         bool isLPCreated; // whether the lp is created or not
-        uint160 sqrtPriceX96;
     }
 
     uint256 public constant totalSupply = 1e9; // the total supply of fundraising token
     address public registryAddress; // The address of chainlink automation registry address
-    mapping(address => FundRaisingAddresses) public fundraisingAddresses; // non profit org wallet address => FundRaisingAddresses
+    mapping(address => FundraisingProtocol) public protocols; // non profit org wallet address => protocol
 
     // uniswap constants
     mapping(address => PoolKey) public poolKeys; // lp address => pool key:  store pool keys for easy access
@@ -72,7 +71,7 @@ contract Factory is Ownable2StepUpgradeable {
     address public treasuryWalletBeacon; // treasury wallet beacon
     address public donationWalletBeacon; // donatation wallet beacon
     bool public pauseAll; // pause all functionalities for all available vaults
-    address admin; // The address of the admin that is used to call some functions via multisig
+    address public admin; // The address of the admin that is used to call some functions via multisig
 
     /**
      *  @notice Emitted when a new fundraising vault is created.
@@ -101,7 +100,7 @@ contract Factory is Ownable2StepUpgradeable {
      * @param treasuryWallet The address of the treasury wallet.
      * @param puase The pause status (true if paused, false otherwise).
      */
-    event TreasuryEmergencyPause(address owner, address treasuryWallet, bool puase);
+    event TreasuryEmergencyPauseSet(address owner, address treasuryWallet, bool puase);
     /**
      * @notice Emitted when the donation wallet pause status is set in an emergency.
      * @dev Contains the owner address, donation wallet, and pause status.
@@ -112,8 +111,6 @@ contract Factory is Ownable2StepUpgradeable {
     event DonationEmergencyPauseSet(address owner, address donationWallet, bool pause);
 
     event EmergencyPauseSet(bool pause);
-
-    event AdminChanged(address oldAdmin, address newAdmin);
 
     /**
      * @notice Ensures that the provided address is not the zero address.
@@ -175,7 +172,6 @@ contract Factory is Ownable2StepUpgradeable {
         nonZeroAddress(_admin)
     {
         __Ownable_init(msg.sender);
-        __Ownable2Step_init();
         registryAddress = _registryAddress;
         poolManager = _poolManager;
         positionManager = _positionManager;
@@ -210,8 +206,11 @@ contract Factory is Ownable2StepUpgradeable {
         uint256 _transferInterval,
         uint256 _minLPHealthThreshhold,
         int24 _tickSpacing
-    ) external nonZeroAddress(_owner) nonZeroAddress(_underlyingAddress) onlyOwner {
-        if (fundraisingAddresses[_owner].fundraisingToken != address(0)) {
+    ) external nonZeroAddress(_owner) onlyOwner {
+        // Liquidity min Health threshold should be greater than or equal to 5e16
+        if (_minLPHealthThreshhold < 5e16) revert InvlidLPHealthThreshold();
+
+        if (protocols[_owner].fundraisingToken != address(0)) {
             revert VaultAlreadyExists();
         }
         // deploy donation wallet
@@ -260,15 +259,14 @@ contract Factory is Ownable2StepUpgradeable {
             address(fundraisingToken)
         );
 
-        fundraisingAddresses[_owner] = FundRaisingAddresses(
+        protocols[_owner] = FundraisingProtocol(
             address(fundraisingToken),
             _underlyingAddress,
             address(treasuryWallet),
             address(donationWallet),
             address(0),
             _owner,
-            false,
-            0
+            false
         );
 
         emit FundraisingVaultCreated(
@@ -296,15 +294,14 @@ contract Factory is Ownable2StepUpgradeable {
 
         bytes[] memory params = new bytes[](2);
 
-        FundRaisingAddresses storage _fundraisingAddresses = fundraisingAddresses[_owner];
-        if (_fundraisingAddresses.fundraisingToken == address(0) || _fundraisingAddresses.treasuryWallet == address(0))
-        {
+        FundraisingProtocol storage _protocol = protocols[_owner];
+        if (_protocol.fundraisingToken == address(0) || _protocol.treasuryWallet == address(0)) {
             revert FundraisingVaultNotCreated();
         }
-        if (_fundraisingAddresses.isLPCreated) revert PoolAlreadyExists();
+        if (_protocol.isLPCreated) revert PoolAlreadyExists();
 
-        address _currency0 = _fundraisingAddresses.underlyingAddress;
-        address _currency1 = _fundraisingAddresses.fundraisingToken;
+        address _currency0 = _protocol.underlyingAddress;
+        address _currency1 = _protocol.fundraisingToken;
 
         if (_currency0 != address(0)) {
             IERC20(_currency0).transferFrom(msg.sender, address(this), _amount0);
@@ -320,12 +317,13 @@ contract Factory is Ownable2StepUpgradeable {
         }
 
         uint160 _startingPrice = Helper.encodeSqrtPriceX96(_amount1, _amount0);
+
         // wrap currencies
         Currency currency0 = Currency.wrap(_currency0);
         Currency currency1 = Currency.wrap(_currency1);
 
         // deploy hook
-        IHooks hook = deployHook(_fundraisingAddresses.fundraisingToken);
+        IHooks hook = deployHook(_protocol.fundraisingToken);
 
         // transfer assets to this contract;
 
@@ -348,18 +346,15 @@ contract Factory is Ownable2StepUpgradeable {
             IPermit2(permit2).approve(_currency1, positionManager, uint160(_amount1), uint48(deadline));
         }
 
-        _fundraisingAddresses.isLPCreated = true;
-        _fundraisingAddresses.sqrtPriceX96 = _startingPrice;
-        _fundraisingAddresses.hook = address(hook);
+        _protocol.isLPCreated = true;
+        _protocol.hook = address(hook);
 
         // store pool key for easy access
         poolKeys[_owner] = pool;
 
         _positionManager.multicall{value: valueToPass}(params);
 
-        emit LiquidityPoolCreated(
-            _fundraisingAddresses.underlyingAddress, _fundraisingAddresses.fundraisingToken, _owner
-        );
+        emit LiquidityPoolCreated(_protocol.underlyingAddress, _protocol.fundraisingToken, _owner);
     }
 
     /**
@@ -370,12 +365,14 @@ contract Factory is Ownable2StepUpgradeable {
      */
     function setTreasuryEmergencyPause(address _nonProfitOrgOwner, bool _pause)
         external
-        onlyOwner
         nonZeroAddress(_nonProfitOrgOwner)
     {
-        TreasuryWallet treasury = TreasuryWallet(fundraisingAddresses[_nonProfitOrgOwner].treasuryWallet);
+        FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
+        // only called by non profit org
+        if (msg.sender != protocol.owner) revert OnlyCalledByNonProfitOrg();
+        TreasuryWallet treasury = TreasuryWallet(protocol.treasuryWallet);
         treasury.emergencyPause(_pause);
-        emit TreasuryEmergencyPause(_nonProfitOrgOwner, address(treasury), _pause);
+        emit TreasuryEmergencyPauseSet(_nonProfitOrgOwner, address(treasury), _pause);
     }
 
     /**
@@ -386,10 +383,12 @@ contract Factory is Ownable2StepUpgradeable {
      */
     function setDonationEmergencyPause(address _nonProfitOrgOwner, bool _pause)
         external
-        onlyOwner
         nonZeroAddress(_nonProfitOrgOwner)
     {
-        DonationWallet donation = DonationWallet(fundraisingAddresses[_nonProfitOrgOwner].donationWallet);
+        FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
+        // only called by non profit org
+        if (msg.sender != protocol.owner) revert OnlyCalledByNonProfitOrg();
+        DonationWallet donation = DonationWallet(protocol.donationWallet);
         donation.emergencyPause(_pause);
         emit DonationEmergencyPauseSet(_nonProfitOrgOwner, address(donation), _pause);
     }
@@ -404,38 +403,6 @@ contract Factory is Ownable2StepUpgradeable {
         pauseAll = _pause;
 
         emit EmergencyPauseSet(_pause);
-    }
-
-    /**
-     * @notice Set new admin address
-     * @param _newAdmin The address of the admin
-     * @dev Only called by the owner
-     */
-    function setAdmin(address _newAdmin) external onlyOwner {
-        emit AdminChanged(admin, _newAdmin);
-        admin = _newAdmin;
-    }
-
-    /**
-     * @notice Returns the balance of the fundraising token held by the pool manager.
-     * @dev Calls the `balanceOf` function of the ERC20 token at the specified address.
-     * @param _fundraisingTokenAddress The address of the ERC20 fundraising token contract.
-     * @return The token balance of the pool manager.
-     * @custom:netspec Returns the current balance of the fundraising token for the pool manager.
-     */
-    function getFundraisingTokenBalance(address _fundraisingTokenAddress) external view returns (uint256) {
-        return IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager);
-    }
-
-    /**
-     * @notice Returns the sqrtPriceX96 value associated with the specified owner address.
-     * @dev Retrieves the uint160 sqrtPriceX96 from the fundraisingAddresses mapping for the given owner.
-     * @param _owner The address of the owner whose sqrtPriceX96 value is to be fetched.
-     * @return The sqrtPriceX96 value (uint160) for the specified owner.
-     * @custom:netspec Returns fundraisingAddresses[_owner].sqrtPriceX96.
-     */
-    function getSqrtPriceX96(address _owner) external view returns (uint160) {
-        return fundraisingAddresses[_owner].sqrtPriceX96;
     }
 
     /**
@@ -459,8 +426,7 @@ contract Factory is Ownable2StepUpgradeable {
         address _currency1 = Currency.unwrap(key.currency1);
 
         bool isETHPair = ((_currency0 == address(0)) || (_currency1 == address(0)));
-
-        if (isETHPair) {
+        if (!isETHPair) {
             actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
             params = new bytes[](2);
         } else {
@@ -489,7 +455,7 @@ contract Factory is Ownable2StepUpgradeable {
             abi.encodeWithSelector(IPositionManager.modifyLiquidities.selector, abi.encode(actions, params), deadline);
     }
 
-    function deployHook(address _fundraisingToken) internal returns (IHooks) {
+    function deployHook(address _fundraisingToken) internal returns (IHooks hook) {
         uint160 flags = uint160(Hooks.AFTER_SWAP_FLAG);
 
         // Mine a salt that will produce a hook address with the correct flags
@@ -497,9 +463,7 @@ contract Factory is Ownable2StepUpgradeable {
         (, bytes32 salt) =
             HookMiner.find(address(this), flags, type(FundraisingTokenHook).creationCode, constructorArgs);
 
-        IHooks hook = new FundraisingTokenHook{salt: salt}(poolManager, _fundraisingToken);
-
-        return hook;
+        hook = new FundraisingTokenHook{salt: salt}(poolManager, _fundraisingToken);
     }
 
     /**

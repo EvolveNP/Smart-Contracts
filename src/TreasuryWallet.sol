@@ -8,6 +8,8 @@ import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionMa
 import {Swap} from "./abstracts/Swap.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {PoolIdLibrary, PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {Slot0, Slot0Library} from "@uniswap/v4-core/src/types/Slot0.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IDonationWallet} from "./interfaces/IDonationWallet.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
@@ -18,7 +20,7 @@ import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmo
 import {Helper} from "./libraries/Helper.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
-import {console} from "forge-std/console.sol";
+import {IStateView} from "@uniswap/v4-periphery/src/interfaces/IStateView.sol";
 
 contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
@@ -44,6 +46,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     uint256 internal constant MULTIPLIER = 1e18;
     int24 internal tickSpacing;
     bool paused;
+    address constant STATE_VIEW = 0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227;
 
     /**
      * Events
@@ -117,7 +120,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         uint256 transferDate = lastTransferTimestamp + transferInterval;
         uint256 lpCurrentThreshold = getCurrentLPHealthThreshold();
         bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());
-        bool initiateAddLiqudity = (minLPHealthThreshhold > lpCurrentThreshold);
+        bool initiateAddLiqudity = ((minLPHealthThreshhold - 15e15) > lpCurrentThreshold);
         bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
         upkeepNeeded = !emergencyPauseEnabled && (initiateTransfer || initiateAddLiqudity);
 
@@ -152,11 +155,13 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * Emits a {LPHealthAdjusted} event after successful adjustment.
      */
     function adjustLPHealth() internal {
-        // swap half of the amount in for currency0
         uint256 amountToAddToLP = (
-            ((fundraisingToken.totalSupply() * minimumHealthThreshhold) / MULTIPLIER)
+            ((fundraisingToken.totalSupply() * (minimumHealthThreshhold)) / MULTIPLIER)
                 - fundraisingToken.balanceOf(address(poolManager))
-        ) / 2;
+        );
+
+        // swap half of the fundraising token to underlying token
+        uint256 amountToSwap = amountToAddToLP / 2;
 
         address _owner = IDonationWallet(donationAddress).owner();
         PoolKey memory key = IFactory(factoryAddress).getPoolKey(_owner);
@@ -164,29 +169,22 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         address currency0 = Currency.unwrap(key.currency0);
         address currency1 = Currency.unwrap(key.currency1);
         bool isCurrency0FundraisingToken = currency0 == address(fundraisingToken);
-        address underlyingCurrency = isCurrency0FundraisingToken ? currency1 : currency0;
-        // get amount min out
-        uint256 minAmountOut = getMinAmountOut(key, !isCurrency0FundraisingToken, uint128(amountToAddToLP), bytes(""));
+
+        uint256 minAmountOut = getMinAmountOut(key, isCurrency0FundraisingToken, uint128(amountToSwap), bytes(""));
+
         // swap token
         uint256 amountOut =
             swapExactInputSingle(key, uint128(amountToAddToLP), uint128(minAmountOut), isCurrency0FundraisingToken);
+
         uint256 _amount0 = isCurrency0FundraisingToken
             ? amountToAddToLP
             : currency0 == address(0) ? address(this).balance : IERC20(currency0).balanceOf(address(this));
-        uint256 _amount1 = !isCurrency0FundraisingToken
-            ? amountToAddToLP
-            : currency0 == address(0) ? address(this).balance : IERC20(currency0).balanceOf(address(this));
+        uint256 _amount1 = isCurrency0FundraisingToken
+            ? currency1 == address(0) ? address(this).balance : IERC20(currency1).balanceOf(address(this))
+            : amountToAddToLP;
 
+        // allow LP to use more fundraising token to add all swapped underlying token based price
         addLiquidity(key, _owner, currency0, currency1, _amount0, _amount1, isCurrency0FundraisingToken);
-
-        // send leftovers to donation wallet
-        if (underlyingCurrency == address(0) && address(this).balance > 0) {
-            (bool success,) = donationAddress.call{value: address(this).balance}("");
-            if (!success) revert TransferFailed();
-        }
-        if (underlyingCurrency != address(0) && IERC20(underlyingCurrency).balanceOf(address(this)) > 0) {
-            IERC20(underlyingCurrency).transfer(donationAddress, IERC20(underlyingCurrency).balanceOf(address(this)));
-        }
 
         emit LPHealthAdjusted(_owner, amountToAddToLP, amountOut);
     }
@@ -255,7 +253,6 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         bool _isCurrencyZeroFundraisingToken
     ) internal {
         IPositionManager _positionManager = IPositionManager(positionManager);
-
         bytes memory actions;
         bytes[] memory params;
         address _underlyingAddress = _isCurrencyZeroFundraisingToken ? _currency1 : _currency0;
@@ -271,15 +268,15 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
             params[2] = abi.encode(address(0), _owner); // only for ETH liquidity positions
         }
 
-        uint160 _sqrtPriceX96 = IFactory(factoryAddress).getSqrtPriceX96(_owner);
+        (uint160 sqrtPriceX96,,,) = IStateView(STATE_VIEW).getSlot0(key.toId());
 
-        (int24 tickLower, int24 tickUpper) = Helper.getMinAndMaxTick(_sqrtPriceX96, tickSpacing);
+        (int24 tickLower, int24 tickUpper) = Helper.getMinAndMaxTick(sqrtPriceX96, tickSpacing);
 
         uint160 sqrtPriceAX96 = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceBX96 = TickMath.getSqrtPriceAtTick(tickUpper);
 
         uint128 _liquidity =
-            LiquidityAmounts.getLiquidityForAmounts(_sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, _amount0, _amount1);
+            LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, _amount0, _amount1);
 
         params[0] = abi.encode(key, tickLower, tickUpper, _liquidity, _amount0, _amount1, 0xdead, bytes(""));
 
@@ -287,7 +284,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
         uint256 deadline = block.timestamp + 1000;
 
-        uint256 valueToPass = key.currency0.isAddressZero() ? _amount0 : 0;
+        uint256 valueToPass = _underlyingAddress == address(0) ? _amount0 : 0;
 
         // approve position manager to spend tokens on behalf of this contract
 
@@ -313,6 +310,5 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     function emergencyPause(bool _pause) external onlyFactory {
         if (paused == _pause) revert EmergencyPauseAlreadySet();
         paused = _pause;
-        emit Paused(_pause);
     }
 }

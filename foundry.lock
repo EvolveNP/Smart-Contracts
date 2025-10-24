@@ -14,6 +14,12 @@
   "lib/permit2": {
     "rev": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
   },
+  "lib/prb-math": {
+    "tag": {
+      "name": "v4.0.2",
+      "rev": "9dc06519f3b9f1659fec7d396da634fe690f660c"
+    }
+  },
   "lib/universal-router": {
     "rev": "3663f6db6e2fe121753cd2d899699c2dc75dca86"
   },

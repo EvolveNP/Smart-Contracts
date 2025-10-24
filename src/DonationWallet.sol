@@ -23,6 +23,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      * Error
      */
     error EmergencyPauseAlreadySet();
+    error NotFactory();
 
     IERC20 public fundraisingTokenAddress; // Address of the FundRaisingToken contract
     address public owner; // Owner of the DonationWallet
@@ -51,7 +52,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      * @custom:netmod Only the factory contract can call functions using this modifier.
      */
     modifier onlyFactory(address _addr) {
-        require(_addr == factoryAddress, "Only by factory");
+        if (_addr != factoryAddress) revert NotFactory();
         _;
     }
 
@@ -89,6 +90,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         returns (bool upkeepNeeded, bytes memory performData)
     {
         bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
+
         upkeepNeeded = !emergencyPauseEnabled && IERC20(fundraisingTokenAddress).balanceOf(address(this)) > 0;
 
         performData = bytes("");
