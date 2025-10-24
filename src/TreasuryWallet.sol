@@ -20,7 +20,6 @@ import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmo
 import {Helper} from "./libraries/Helper.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
-import {console} from "forge-std/console.sol";
 import {IStateView} from "@uniswap/v4-periphery/src/interfaces/IStateView.sol";
 
 contract TreasuryWallet is AutomationCompatibleInterface, Swap {
@@ -121,7 +120,6 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         uint256 transferDate = lastTransferTimestamp + transferInterval;
         uint256 lpCurrentThreshold = getCurrentLPHealthThreshold();
         bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());
-        console.log(minLPHealthThreshhold - 15e15, lpCurrentThreshold, "in lp", initiateTransfer);
         bool initiateAddLiqudity = ((minLPHealthThreshhold - 15e15) > lpCurrentThreshold);
         bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
         upkeepNeeded = !emergencyPauseEnabled && (initiateTransfer || initiateAddLiqudity);

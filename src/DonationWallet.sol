@@ -15,7 +15,6 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Swap} from "./abstracts/Swap.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {console} from "forge-std/console.sol";
 
 contract DonationWallet is Swap, AutomationCompatibleInterface {
     using StateLibrary for IPoolManager;
