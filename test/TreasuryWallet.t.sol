@@ -35,7 +35,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     address constant LP_MANAGER = address(0x11);
     uint256 constant MIN_HEALTH = 7e16; // 7%
     uint256 constant TRANSFER_INTERVAL = 30 days;
-    uint256 constant MIN_LP_HEALTH = 7e16;
+    uint256 constant MIN_LP_HEALTH = 5e16;
     int24 constant DEFAULT_TICK = 60;
 
     uint256 internal constant MULTIPLIER = 1e18;
@@ -371,7 +371,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         vm.stopPrank();
         vm.warp(31 days);
         vm.startPrank(LP_MANAGER);
-        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * MIN_LP_HEALTH) / MULTIPLIER;
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH - 15e15)) / MULTIPLIER;
         fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP - 2000); // send FTN token to pool manager. consider it is in Liquidity pool
         (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
         assertEq(upkeepNeeded, true);
@@ -379,10 +379,10 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         assertEq(performData, _performData);
     }
 
-    function test_CheckUpkeep_Returns_UpKeepNeeded_True_And_InitiateAddLiquidity_And_InitiateTransfer_True() public {
+    function testCheckUpkeepReturnsUpKeepNeededTrueAndInitiateAddLiquidityAndInitiateTransferTrue() public {
         vm.warp(31 days);
         vm.startPrank(LP_MANAGER);
-        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * MIN_LP_HEALTH) / MULTIPLIER;
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH - 15e15)) / MULTIPLIER;
         fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP - 2000); // send FTN token to pool manager. consider it is in Liquidity pool
         (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
         assertEq(upkeepNeeded, true);
@@ -425,7 +425,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
 
         vm.startPrank(USDC_WHALE);
 
-        uint128 amountToSwap = 200000e6; // to make the LP un healthy
+        uint128 amountToSwap = 650_000e6; // to make the LP un healthy
         PoolKey memory key = factory.getPoolKey(factoryTest.nonProfitOrg());
         IPermit2 permit2 = IPermit2(factory.permit2());
         UniversalRouter router = UniversalRouter(payable(factory.router()));

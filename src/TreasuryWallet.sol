@@ -22,7 +22,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
 import {console} from "forge-std/console.sol";
 import {IStateView} from "@uniswap/v4-periphery/src/interfaces/IStateView.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
@@ -122,7 +121,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         uint256 transferDate = lastTransferTimestamp + transferInterval;
         uint256 lpCurrentThreshold = getCurrentLPHealthThreshold();
         bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());
-        bool initiateAddLiqudity = (minLPHealthThreshhold > lpCurrentThreshold);
+        console.log(minLPHealthThreshhold - 15e15, lpCurrentThreshold, "in lp", initiateTransfer);
+        bool initiateAddLiqudity = ((minLPHealthThreshhold - 15e15) > lpCurrentThreshold);
         bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
         upkeepNeeded = !emergencyPauseEnabled && (initiateTransfer || initiateAddLiqudity);
 
@@ -157,52 +157,38 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * Emits a {LPHealthAdjusted} event after successful adjustment.
      */
     function adjustLPHealth() internal {
-        // swap half of the amount in for currency0
-        console.log("here in adjust");
-        console.log(
-            (fundraisingToken.totalSupply() * minimumHealthThreshhold) / MULTIPLIER,
-            fundraisingToken.balanceOf(address(poolManager))
-        );
         uint256 amountToAddToLP = (
-            ((fundraisingToken.totalSupply() * minimumHealthThreshhold) / MULTIPLIER)
+            ((fundraisingToken.totalSupply() * (minimumHealthThreshhold)) / MULTIPLIER)
                 - fundraisingToken.balanceOf(address(poolManager))
-        ); 
+        );
+
+        // swap half of the fundraising token to underlying token
+        uint256 amountToSwap = amountToAddToLP / 2;
+
         address _owner = IDonationWallet(donationAddress).owner();
         PoolKey memory key = IFactory(factoryAddress).getPoolKey(_owner);
 
         address currency0 = Currency.unwrap(key.currency0);
         address currency1 = Currency.unwrap(key.currency1);
         bool isCurrency0FundraisingToken = currency0 == address(fundraisingToken);
-        address underlyingCurrency = isCurrency0FundraisingToken ? currency1 : currency0;
-        // get amount min out
-        uint256 minAmountOut = getMinAmountOut(key, isCurrency0FundraisingToken, uint128(amountToAddToLP), bytes(""));
-        (uint160 sqrtPriceX96,,,) = IStateView(STATE_VIEW).getSlot0(key.toId());
 
-          uint256 swapAmount = getSwapAmount(sqrtPriceX96, amountToAddToLP);
-          console.log(swapAmount, 'swap amount returned');
+        uint256 minAmountOut = getMinAmountOut(key, isCurrency0FundraisingToken, uint128(amountToSwap), bytes(""));
+
         // swap token
-        // uint256 amountOut =
-        //     swapExactInputSingle(key, uint128(swapAmount), uint128(minAmountOut), isCurrency0FundraisingToken);
-        // uint256 _amount0 = isCurrency0FundraisingToken
-        //     ? swapAmount
-        //     : currency0 == address(0) ? address(this).balance : IERC20(currency0).balanceOf(address(this));
-        // uint256 _amount1 = isCurrency0FundraisingToken
-        //     ? currency1 == address(0) ? address(this).balance : IERC20(currency1).balanceOf(address(this))
-        //     : swapAmount;
+        uint256 amountOut =
+            swapExactInputSingle(key, uint128(amountToAddToLP), uint128(minAmountOut), isCurrency0FundraisingToken);
 
-        // addLiquidity(key, _owner, currency0, currency1, _amount0, _amount1, isCurrency0FundraisingToken);
+        uint256 _amount0 = isCurrency0FundraisingToken
+            ? amountToAddToLP
+            : currency0 == address(0) ? address(this).balance : IERC20(currency0).balanceOf(address(this));
+        uint256 _amount1 = isCurrency0FundraisingToken
+            ? currency1 == address(0) ? address(this).balance : IERC20(currency1).balanceOf(address(this))
+            : amountToAddToLP;
 
-        // // send leftovers to donation wallet
-        // if (underlyingCurrency == address(0) && address(this).balance > 0) {
-        //     (bool success,) = donationAddress.call{value: address(this).balance}("");
-        //     if (!success) revert TransferFailed();
-        // }
-        // if (underlyingCurrency != address(0) && IERC20(underlyingCurrency).balanceOf(address(this)) > 0) {
-        //     IERC20(underlyingCurrency).transfer(donationAddress, IERC20(underlyingCurrency).balanceOf(address(this)));
-        // }
-        // console.log(IERC20(underlyingCurrency).balanceOf(address(this)));
-        //   console.log(
-      //  emit LPHealthAdjusted(_owner, amountToAddToLP, amountOut);
+        // allow LP to use more fundraising token to add all swapped underlying token based price
+        addLiquidity(key, _owner, currency0, currency1, _amount0, _amount1, isCurrency0FundraisingToken);
+
+        emit LPHealthAdjusted(_owner, amountToAddToLP, amountOut);
     }
 
     /**
@@ -269,7 +255,6 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         bool _isCurrencyZeroFundraisingToken
     ) internal {
         IPositionManager _positionManager = IPositionManager(positionManager);
-        console.log(_amount0, _amount1, "here in add");
         bytes memory actions;
         bytes[] memory params;
         address _underlyingAddress = _isCurrencyZeroFundraisingToken ? _currency1 : _currency0;
@@ -292,7 +277,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         uint160 sqrtPriceAX96 = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceBX96 = TickMath.getSqrtPriceAtTick(tickUpper);
 
-        uint128 _liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceAX96, sqrtPriceBX96, _amount0);
+        uint128 _liquidity =
+            LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, _amount0, _amount1);
 
         params[0] = abi.encode(key, tickLower, tickUpper, _liquidity, _amount0, _amount1, 0xdead, bytes(""));
 
@@ -327,26 +313,5 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         if (paused == _pause) revert EmergencyPauseAlreadySet();
         paused = _pause;
         emit Paused(_pause);
-    }
-
-    function getSwapAmount(uint160 sqrtPriceX96, uint256 token0Balance)
-        internal
-        pure
-        returns (uint256)
-    {
-        //uint256 price = uint256(sqrtPrice) ** 2 / 2 ** 192;
-       uint256 priceX96 = uint256(sqrtPriceX96) * uint256(sqrtPriceX96) / (1 << 192);
-       console.log(priceX96, 'calc x96');
-       console.log(sqrtPriceX96, token0Balance);
-               // Compute optimal swap ratio (approximate)
-        uint256 one = 1e18;
-        uint256 sqrtTerm = Math.sqrt(one + priceX96);
-        console.log(sqrtTerm, 'sqrt term');
-        uint256 ratio = one / sqrtPriceX96;
-        console.log(ratio, 'ratio');
-        uint256 swapAmount = (token0Balance * ratio) / one;
-
-        return swapAmount;
-        //   uint256 amount0 = LiquidityAmounts.getAmount0ForLiquidity(sqrtPriceAX96, sqrtPriceAB96, liquidity);
     }
 }
