@@ -217,7 +217,7 @@ contract Factory is Ownable2StepUpgradeable {
         DonationWallet donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
 
         // deploy treasury wallet
-        TreasuryWallet treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryWalletBeacon, "")));
+        TreasuryWallet treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryWalletBeacon, ""))));
 
         uint8 _decimals = 18;
         if (_underlyingAddress != address(0)) {
@@ -336,15 +336,14 @@ contract Factory is Ownable2StepUpgradeable {
         uint256 deadline = block.timestamp + 1000;
         uint256 valueToPass = pool.currency0.isAddressZero() ? _amount0 : pool.currency1.isAddressZero() ? _amount1 : 0;
 
+        // ether is always currency0
         if (!pool.currency0.isAddressZero()) {
             IERC20(_currency0).approve(address(permit2), _amount0);
             IPermit2(permit2).approve(_currency0, positionManager, uint160(_amount0), uint48(deadline));
         }
 
-        if (!pool.currency1.isAddressZero()) {
-            IERC20(_currency1).approve(address(permit2), _amount1);
-            IPermit2(permit2).approve(_currency1, positionManager, uint160(_amount1), uint48(deadline));
-        }
+        IERC20(_currency1).approve(address(permit2), _amount1);
+        IPermit2(permit2).approve(_currency1, positionManager, uint160(_amount1), uint48(deadline));
 
         _protocol.isLPCreated = true;
         _protocol.hook = address(hook);
@@ -370,7 +369,7 @@ contract Factory is Ownable2StepUpgradeable {
         FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
         // only called by non profit org
         if (msg.sender != protocol.owner) revert OnlyCalledByNonProfitOrg();
-        TreasuryWallet treasury = TreasuryWallet(protocol.treasuryWallet);
+        TreasuryWallet treasury = TreasuryWallet(payable(protocol.treasuryWallet));
         treasury.emergencyPause(_pause);
         emit TreasuryEmergencyPauseSet(_nonProfitOrgOwner, address(treasury), _pause);
     }

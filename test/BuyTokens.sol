@@ -51,11 +51,12 @@ abstract contract BuyFundraisingTokens {
 
         uint256 deadline = block.timestamp + 40;
         address usdc = Currency.unwrap(key.currency0);
+        if (usdc != address(0)) {
+            IERC20(usdc).approve(address(permit2), type(uint256).max);
+            permit2.approve(usdc, address(router), amountIn, uint48(deadline));
+        }
 
-        IERC20(usdc).approve(address(permit2), type(uint256).max);
-        permit2.approve(usdc, address(router), amountIn, uint48(deadline));
-
-        router.execute(commands, inputs, deadline);
+        router.execute{value: amountIn}(commands, inputs, deadline);
     }
 
     function _getMinAmountOut(

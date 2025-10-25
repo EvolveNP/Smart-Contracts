@@ -68,6 +68,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         _;
     }
 
+    receive() external payable {}
+
     /**
      *
      * @param _donationAddress The address of the donation wallet
@@ -155,10 +157,9 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * Emits a {LPHealthAdjusted} event after successful adjustment.
      */
     function adjustLPHealth() internal {
-        uint256 amountToAddToLP = (
-            ((fundraisingToken.totalSupply() * (minimumHealthThreshhold)) / MULTIPLIER)
-                - fundraisingToken.balanceOf(address(poolManager))
-        );
+        uint256 lpBalance = fundraisingToken.balanceOf(address(poolManager));
+        uint256 amountToAddToLP =
+            ((fundraisingToken.totalSupply() * (minimumHealthThreshhold)) / MULTIPLIER) - lpBalance;
 
         // swap half of the fundraising token to underlying token
         uint256 amountToSwap = amountToAddToLP / 2;
@@ -174,19 +175,20 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
         // swap token
         uint256 amountOut =
-            swapExactInputSingle(key, uint128(amountToAddToLP), uint128(minAmountOut), isCurrency0FundraisingToken);
+            swapExactInputSingle(key, uint128(amountToSwap), uint128(minAmountOut), isCurrency0FundraisingToken);
 
         uint256 _amount0 = isCurrency0FundraisingToken
             ? amountToAddToLP
             : currency0 == address(0) ? address(this).balance : IERC20(currency0).balanceOf(address(this));
-        uint256 _amount1 = isCurrency0FundraisingToken
-            ? currency1 == address(0) ? address(this).balance : IERC20(currency1).balanceOf(address(this))
-            : amountToAddToLP;
+
+        uint256 _amount1 = isCurrency0FundraisingToken ? IERC20(currency1).balanceOf(address(this)) : amountToAddToLP;
 
         // allow LP to use more fundraising token to add all swapped underlying token based price
-        addLiquidity(key, _owner, currency0, currency1, _amount0, _amount1, isCurrency0FundraisingToken);
+        _addLiquidity(key, _owner, currency0, currency1, _amount0, _amount1, isCurrency0FundraisingToken);
 
-        emit LPHealthAdjusted(_owner, amountToAddToLP, amountOut);
+        uint256 fundraisingTokenAdded = fundraisingToken.balanceOf(address(poolManager)) - lpBalance;
+
+        emit LPHealthAdjusted(_owner, fundraisingTokenAdded, amountOut);
     }
 
     /**
@@ -243,7 +245,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * @param _amount1 The amount of currency1 to add as liquidity.
      * @param _isCurrencyZeroFundraisingToken Boolean indicating if currency0 is the fundraising token.
      */
-    function addLiquidity(
+    function _addLiquidity(
         PoolKey memory key,
         address _owner,
         address _currency0,
@@ -256,7 +258,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         bytes memory actions;
         bytes[] memory params;
         address _underlyingAddress = _isCurrencyZeroFundraisingToken ? _currency1 : _currency0;
-        if (_underlyingAddress == address(0)) {
+        if (_underlyingAddress != address(0)) {
             //ETH
             actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
             params = new bytes[](2);

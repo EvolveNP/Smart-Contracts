@@ -42,10 +42,10 @@ contract FactoryTest is Test {
     uint256 maximumThreshold = 30e16; // 30%
     uint256 minimumHealthThreshhold = 5e16; // 7%
     uint256 transferInterval = 30 days;
-    uint256 minLPHealthThreshhold = 5e16; // 5%
+    uint256 public minLPHealthThreshhold = 5e16; // 5%
     int24 tickSpacing = 60;
 
-    address nonProfitOrg2 = address(0x27);
+    address public nonProfitOrg2 = address(0x27);
 
     function setUp() public {
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
@@ -281,7 +281,7 @@ contract FactoryTest is Test {
         assertEq(address(dw.permit2()), permit2);
         assertEq(address(dw.positionManager()), positionManager);
 
-        TreasuryWallet tw = TreasuryWallet(treasuryWallet);
+        TreasuryWallet tw = TreasuryWallet(payable(treasuryWallet));
         assertEq(tw.donationAddress(), donationWallet);
         assertEq(tw.factoryAddress(), address(factory));
         assertEq(tw.registryAddress(), registryAddress);
@@ -420,7 +420,7 @@ contract FactoryTest is Test {
 
         // transfer some amount to donation wallet
         vm.roll(block.number + 10);
-        TreasuryWallet treasury = TreasuryWallet(treasuryWalletAddress);
+        TreasuryWallet treasury = TreasuryWallet(payable(treasuryWalletAddress));
 
         bytes memory performData = abi.encode(true, false);
 
@@ -447,7 +447,6 @@ contract FactoryTest is Test {
 
         vm.deal(owner, amount0);
 
-        console.log(owner.balance, "owner balance");
         uint256 tolerance = 2_200; // add some tolerance due to precision
 
         vm.startPrank(owner);
