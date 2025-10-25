@@ -19,6 +19,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Factory} from "../src/Factory.sol";
 import {FactoryTest} from "./Factory.t.sol";
 import {BuyFundraisingTokens} from "./BuyTokens.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     TreasuryWallet public treasuryWallet;
@@ -46,7 +47,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     function setUp() public {
         address treasuryImplementation = address(new TreasuryWallet());
         treasuryBeacon = address(new UpgradeableBeacon(treasuryImplementation, msg.sender));
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(payable(address(new BeaconProxy(treasuryBeacon, "")))));
         address factoryImplementation = address(new Factory());
         factoryProxy = address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes("")));
         fundRaisingToken = new FundRaisingToken(
@@ -71,7 +72,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testRevertOnZeroDonationAddress() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             address(0),
@@ -91,7 +92,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testRevertOnZeroFactoryAddress() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -111,7 +112,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testRevertOnZeroRegistryAddress() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -131,7 +132,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testRevertOnZeroRouterAddress() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -151,7 +152,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testRevertOnZeroPoolManagerAddress() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -171,7 +172,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testRevertOnZeroPermit2Address() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -191,7 +192,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testRevertOnZeroPositionManagerAddress() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -211,7 +212,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testRevertOnZeroQuoterAddress() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -231,7 +232,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testRevertOnZeroFundraisingTokenAddress() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -251,7 +252,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testRevertOnZeroTransferInterval() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         vm.expectRevert(Swap.ZeroAmount.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
@@ -271,7 +272,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testCannotInitializeTwice() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
@@ -307,7 +308,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testInitializeSetsValuesCorrectly() public {
-        treasuryWallet = TreasuryWallet(address(new BeaconProxy(treasuryBeacon, "")));
+        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
@@ -434,11 +435,64 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         vm.roll(block.number + 100);
         vm.warp(block.timestamp + 3 hours);
         uint256 minAmountOut = _getMinAmountOut(key, true, amountToSwap, bytes(""), qouter, slippage);
-        console.log(uint128(minAmountOut), "min");
         buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router);
         vm.startPrank(registry);
-        TreasuryWallet treasuryInstance = TreasuryWallet(treasury);
+        TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
         bytes memory performData = abi.encode(false, true);
+        treasuryInstance.performUpkeep(performData);
+    }
+
+    function testPerformUpKeepAddLiquidityToLPToAdjustLPHealthWhenUnderyingAssetIsETH() public {
+        FactoryTest factoryTest = new FactoryTest();
+        factoryTest.setUp();
+        factoryTest.testCreatePoolOwnerCanCreatePoolUsingEtherAsUnderlyingToken();
+        Factory factory = factoryTest.factory();
+        address nonProfitOrg = address(0x27);
+        (address _fundRaisingToken,, address treasury,,,,) = factory.protocols(nonProfitOrg);
+        address registry = factoryTest.registryAddress();
+        // buy tokens to make lp under health
+        address USDC_WHALE = factoryTest.USDC_WHALE();
+
+        vm.startPrank(USDC_WHALE);
+
+        uint128 amountToSwap = 150 ether; // to make the LP un healthy
+        vm.deal(USDC_WHALE, amountToSwap);
+        PoolKey memory key = factory.getPoolKey(nonProfitOrg);
+
+        IPermit2 permit2 = IPermit2(factory.permit2());
+        UniversalRouter router = UniversalRouter(payable(factory.router()));
+        IV4Quoter qouter = IV4Quoter(factory.quoter());
+        uint256 slippage = 5e16;
+        vm.roll(block.number + 100);
+        vm.warp(block.timestamp + 3 hours);
+        uint256 minAmountOut = _getMinAmountOut(key, true, amountToSwap, bytes(""), qouter, slippage);
+
+        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router);
+
+        vm.startPrank(registry);
+        vm.deal(registry, 10 ether);
+        TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        bytes memory performData = abi.encode(false, true);
+        treasuryInstance.performUpkeep(performData);
+
+        assertEq(
+            IERC20Metadata(_fundRaisingToken).balanceOf(factory.poolManager())
+                >= (IERC20Metadata(_fundRaisingToken).totalSupply() * factoryTest.minLPHealthThreshhold()) / 1e18,
+            true
+        );
+    }
+
+    function testPerformUpKeepCannotInitiateTransferAndAddLiquidityIfPerfomDataReturnsFalse() public {
+        FactoryTest factoryTest = new FactoryTest();
+        factoryTest.setUp();
+        factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
+        Factory factory = factoryTest.factory();
+        address nonProfitOrg = address(0x7);
+        (,, address treasury,,,,) = factory.protocols(nonProfitOrg);
+        address registry = factoryTest.registryAddress();
+        vm.startPrank(registry);
+        TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        bytes memory performData = abi.encode(false, false);
         treasuryInstance.performUpkeep(performData);
     }
 }
