@@ -15,6 +15,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Swap} from "./abstracts/Swap.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {console} from "forge-std/console.sol";
 
 contract DonationWallet is Swap, AutomationCompatibleInterface {
     using StateLibrary for IPoolManager;
@@ -24,6 +25,8 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      */
     error EmergencyPauseAlreadySet();
     error NotFactory();
+    error NotRegistry();
+    error TransferFailed();
 
     IERC20 public fundraisingTokenAddress; // Address of the FundRaisingToken contract
     address public owner; // Owner of the DonationWallet
@@ -48,20 +51,21 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
 
     /**
      * @notice Modifier to restrict access to functions to only the factory contract.
-     * @dev Ensures that the provided address matches the factoryAddress state variable.
-     * @param _addr The address to check against the factoryAddress.
+     * @dev Ensures that the msg.sender matches the factoryAddress state variable.
      * @custom:netmod Only the factory contract can call functions using this modifier.
      */
-    modifier onlyFactory(address _addr) {
-        if (_addr != factoryAddress) revert NotFactory();
+    modifier onlyFactory() {
+        if (msg.sender != factoryAddress) revert NotFactory();
         _;
     }
 
-    modifier onlyRegistry(address _addr) {
-        if (_addr != registryAddress) revert NotFactory();
+    modifier onlyRegistry() {
+        if (msg.sender != registryAddress) revert NotRegistry();
         _;
     }
 
+    // fallback to receive ETH when swapping
+    receive() external payable {}
     /**
      *
      * @param _factoryAddress The address of the factory contract
@@ -71,6 +75,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      * @param _permit2 The address of the uniswap permit2 contract
      * @param _positionManager The address of the uniswap v4 position manager
      */
+
     function initialize(
         address _factoryAddress,
         address _owner,
@@ -98,7 +103,6 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         returns (bool upkeepNeeded, bytes memory performData)
     {
         bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
-
         upkeepNeeded = !emergencyPauseEnabled && IERC20(fundraisingTokenAddress).balanceOf(address(this)) > 0;
 
         performData = bytes("");
@@ -107,7 +111,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     /**
      * See {AutomationCompatibleInterace - performUpkeep}
      */
-    function performUpkeep(bytes calldata performData) external onlyRegistry(msg.sender) {
+    function performUpkeep(bytes calldata performData) external onlyRegistry {
         swapFundraisingToken();
     }
 
@@ -121,6 +125,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         PoolKey memory key = IFactory(factoryAddress).getPoolKey(owner);
 
         address currency0 = Currency.unwrap(key.currency0);
+        address currency1 = Currency.unwrap(key.currency1);
         bool isCurrency0FundraisingToken = currency0 == address(fundraisingTokenAddress);
 
         uint256 minAmountOut = getMinAmountOut(key, isCurrency0FundraisingToken, uint128(amountIn), bytes(""));
@@ -128,10 +133,15 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         uint256 amountOut =
             swapExactInputSingle(key, uint128(amountIn), uint128(minAmountOut), isCurrency0FundraisingToken);
 
-        bool success = IERC20(currency0).transfer(owner, amountOut);
-
-        require(success, "Transfer failed");
-
+        if (currency0 == address(0)) {
+            (bool success,) = owner.call{value: amountOut}("");
+            if (!success) revert TransferFailed();
+        } else {
+            bool success = isCurrency0FundraisingToken
+                ? IERC20(currency1).transfer(owner, amountOut)
+                : IERC20(currency0).transfer(owner, amountOut);
+            if (!success) revert TransferFailed();
+        }
         emit FundsTransferredToNonProfit(owner, amountOut);
     }
 
@@ -140,7 +150,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      * @param _pause set true to enable emergency pause otherwise set false
      * @dev Only factory can set emergency pause
      */
-    function emergencyPause(bool _pause) external onlyFactory(msg.sender) {
+    function emergencyPause(bool _pause) external onlyFactory {
         if (paused == _pause) revert EmergencyPauseAlreadySet();
         paused = _pause;
         emit Paused(_pause);
