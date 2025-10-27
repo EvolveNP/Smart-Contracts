@@ -273,7 +273,7 @@ contract FactoryTest is Test {
         assertEq(token.donationAddress(), donationWallet);
         assertEq(token.factoryAddress(), address(factory));
 
-        DonationWallet dw = DonationWallet(donationWallet);
+        DonationWallet dw = DonationWallet(payable(donationWallet));
         assertEq(dw.owner(), address(30));
         assertEq(dw.factoryAddress(), address(factory));
         assertEq(address(dw.router()), router);
@@ -432,7 +432,7 @@ contract FactoryTest is Test {
 
         // swap fundraising token to usdc
 
-        DonationWallet donation = DonationWallet(donationWalletAddress);
+        DonationWallet donation = DonationWallet(payable(donationWalletAddress));
 
         donation.performUpkeep(bytes(""));
 

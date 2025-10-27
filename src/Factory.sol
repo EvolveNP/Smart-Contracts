@@ -214,7 +214,7 @@ contract Factory is Ownable2StepUpgradeable {
             revert VaultAlreadyExists();
         }
         // deploy donation wallet
-        DonationWallet donationWallet = DonationWallet(address(new BeaconProxy(donationWalletBeacon, "")));
+        DonationWallet donationWallet = DonationWallet(payable(address(new BeaconProxy(donationWalletBeacon, ""))));
 
         // deploy treasury wallet
         TreasuryWallet treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryWalletBeacon, ""))));
@@ -240,7 +240,15 @@ contract Factory is Ownable2StepUpgradeable {
         );
 
         donationWallet.initialize(
-            address(this), _owner, router, poolManager, permit2, positionManager, quoter, address(fundraisingToken)
+            address(this),
+            _owner,
+            router,
+            poolManager,
+            permit2,
+            positionManager,
+            quoter,
+            address(fundraisingToken),
+            registryAddress
         );
 
         treasuryWallet.initialize(
@@ -387,7 +395,7 @@ contract Factory is Ownable2StepUpgradeable {
         FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
         // only called by non profit org
         if (msg.sender != protocol.owner) revert OnlyCalledByNonProfitOrg();
-        DonationWallet donation = DonationWallet(protocol.donationWallet);
+        DonationWallet donation = DonationWallet(payable(protocol.donationWallet));
         donation.emergencyPause(_pause);
         emit DonationEmergencyPauseSet(_nonProfitOrgOwner, address(donation), _pause);
     }
