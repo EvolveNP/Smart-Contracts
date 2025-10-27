@@ -21,7 +21,8 @@ abstract contract BuyFundraisingTokens {
         uint128 amountIn,
         uint128 minAmountOut,
         IPermit2 permit2,
-        UniversalRouter router
+        UniversalRouter router,
+        address fundraisingTokenAddress
     ) internal {
         // Encode the Universal Router command
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
@@ -32,28 +33,33 @@ abstract contract BuyFundraisingTokens {
             abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
 
         // Prepare parameters for each action
+        bool _isCurrency0FundraisingToken = fundraisingTokenAddress == Currency.unwrap(key.currency0);
         bytes[] memory params = new bytes[](3);
         params[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: key,
-                zeroForOne: true,
+                zeroForOne: !_isCurrency0FundraisingToken,
                 amountIn: amountIn,
                 amountOutMinimum: minAmountOut,
                 hookData: bytes("")
             })
         );
 
-        params[1] = abi.encode(key.currency0, amountIn);
-        params[2] = abi.encode(key.currency1, minAmountOut);
+        Currency currencyIn = _isCurrency0FundraisingToken ? key.currency1 : key.currency0;
+        Currency currencyOut = _isCurrency0FundraisingToken ? key.currency0 : key.currency1;
+
+        params[1] = abi.encode(currencyIn, amountIn);
+        params[2] = abi.encode(currencyOut, minAmountOut);
 
         // Combine actions and params into inputs
         inputs[0] = abi.encode(actions, params);
 
         uint256 deadline = block.timestamp + 40;
-        address usdc = Currency.unwrap(key.currency0);
-        if (usdc != address(0)) {
-            IERC20(usdc).approve(address(permit2), type(uint256).max);
-            permit2.approve(usdc, address(router), amountIn, uint48(deadline));
+        address underlingCurrency =
+            _isCurrency0FundraisingToken ? Currency.unwrap(key.currency1) : Currency.unwrap(key.currency0);
+        if (underlingCurrency != address(0)) {
+            IERC20(underlingCurrency).approve(address(permit2), type(uint256).max);
+            permit2.approve(underlingCurrency, address(router), amountIn, uint48(deadline));
         }
 
         router.execute{value: amountIn}(commands, inputs, deadline);
@@ -61,15 +67,16 @@ abstract contract BuyFundraisingTokens {
 
     function _getMinAmountOut(
         PoolKey memory _key,
-        bool _zeroForOne,
         uint128 _exactAmount,
         bytes memory _hookData,
         IV4Quoter qouter,
-        uint256 slippage
+        uint256 slippage,
+        address _fundraisingTokenAddress
     ) internal returns (uint256 minAmountAmount) {
+        bool _isCurrency0FundraisingToken = _fundraisingTokenAddress == Currency.unwrap(_key.currency0);
         IV4Quoter.QuoteExactSingleParams memory params = IV4Quoter.QuoteExactSingleParams({
             poolKey: _key,
-            zeroForOne: _zeroForOne,
+            zeroForOne: !_isCurrency0FundraisingToken,
             exactAmount: _exactAmount,
             hookData: _hookData
         });

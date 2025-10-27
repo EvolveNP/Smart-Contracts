@@ -15,7 +15,6 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {IPoolInitializer_v4} from "@uniswap/v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
-import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {FundRaisingToken} from "./FundRaisingToken.sol";
@@ -159,7 +158,9 @@ contract Factory is Ownable2StepUpgradeable {
         address _router,
         address _permit2,
         address _quoter,
-        address _admin
+        address _admin,
+        address _treasuryWalletBeacon,
+        address _donationWalletBeacon
     )
         external
         initializer
@@ -170,6 +171,8 @@ contract Factory is Ownable2StepUpgradeable {
         nonZeroAddress(_permit2)
         nonZeroAddress(_quoter)
         nonZeroAddress(_admin)
+        nonZeroAddress(_treasuryWalletBeacon)
+        nonZeroAddress(_donationWalletBeacon)
     {
         __Ownable_init(msg.sender);
         registryAddress = _registryAddress;
@@ -177,12 +180,8 @@ contract Factory is Ownable2StepUpgradeable {
         positionManager = _positionManager;
         router = _router;
         permit2 = _permit2;
-        // deploy treasury wallet beacon
-        address treasuryImplementation = address(new TreasuryWallet());
-        treasuryWalletBeacon = address(new UpgradeableBeacon(treasuryImplementation, msg.sender));
-        // deploy donation wallet beacon
-        address donationWalletImplementation = address(new DonationWallet());
-        donationWalletBeacon = address(new UpgradeableBeacon(donationWalletImplementation, msg.sender));
+        treasuryWalletBeacon = _treasuryWalletBeacon;
+        donationWalletBeacon = _donationWalletBeacon;
         admin = _admin;
         quoter = _quoter;
     }

@@ -419,7 +419,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
         Factory factory = factoryTest.factory();
         address nonProfitOrg = address(0x7);
-        (,, address treasury,,,,) = factory.protocols(nonProfitOrg);
+        (address fundraisingTokenAddress,, address treasury,,,,) = factory.protocols(nonProfitOrg);
         address registry = factoryTest.registryAddress();
         // buy tokens to make lp under health
         address USDC_WHALE = factoryTest.USDC_WHALE();
@@ -434,8 +434,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         uint256 slippage = 5e16;
         vm.roll(block.number + 100);
         vm.warp(block.timestamp + 3 hours);
-        uint256 minAmountOut = _getMinAmountOut(key, true, amountToSwap, bytes(""), qouter, slippage);
-        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router);
+        uint256 minAmountOut = _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, fundraisingTokenAddress);
+        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, fundraisingTokenAddress);
         vm.startPrank(registry);
         TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
         bytes memory performData = abi.encode(false, true);
@@ -465,9 +465,9 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         uint256 slippage = 5e16;
         vm.roll(block.number + 100);
         vm.warp(block.timestamp + 3 hours);
-        uint256 minAmountOut = _getMinAmountOut(key, true, amountToSwap, bytes(""), qouter, slippage);
+        uint256 minAmountOut = _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, _fundRaisingToken);
 
-        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router);
+        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, _fundRaisingToken);
 
         vm.startPrank(registry);
         vm.deal(registry, 10 ether);

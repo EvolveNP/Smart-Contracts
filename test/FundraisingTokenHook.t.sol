@@ -19,6 +19,7 @@ import {CustomRevert} from "@uniswap/v4-periphery/lib/v4-core/src/libraries/Cust
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {BuyFundraisingTokens} from "./BuyTokens.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
 contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
     uint256 mainnetFork;
@@ -57,7 +58,8 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
-
+        (address ftn,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
+        bool zeroForOne = ftn != Currency.unwrap(key.currency0);
         // Encode V4Router actions
         bytes memory actions =
             abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
@@ -67,7 +69,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         params[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: key,
-                zeroForOne: true,
+                zeroForOne: zeroForOne,
                 amountIn: amountIn,
                 amountOutMinimum: minAmountOut,
                 hookData: bytes("")
@@ -80,10 +82,12 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         // Combine actions and params into inputs
         inputs[0] = abi.encode(actions, params);
 
-        uint256 deadline = block.timestamp + 20;
+        uint256 deadline = block.timestamp + 60;
 
-        IERC20(usdc).approve(address(permit2), type(uint256).max);
-        permit2.approve(usdc, address(router), amountIn, uint48(deadline));
+        address underlyingCurryency = zeroForOne ? Currency.unwrap(key.currency0) : Currency.unwrap(key.currency1);
+
+        IERC20(underlyingCurryency).approve(address(permit2), type(uint256).max);
+        permit2.approve(underlyingCurryency, address(router), amountIn, uint48(deadline));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -107,6 +111,9 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
 
+        (address ftn,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
+        bool zeroForOne = ftn != Currency.unwrap(key.currency0);
+
         vm.roll(block.number + 10);
 
         // Encode V4Router actions
@@ -118,7 +125,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         params[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: key,
-                zeroForOne: true,
+                zeroForOne: zeroForOne,
                 amountIn: amountIn,
                 amountOutMinimum: minAmountOut,
                 hookData: bytes("")
@@ -131,7 +138,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         // Combine actions and params into inputs
         inputs[0] = abi.encode(actions, params);
 
-        uint256 deadline = block.timestamp + 20;
+        uint256 deadline = block.timestamp + 60;
 
         IERC20(usdc).approve(address(permit2), type(uint256).max);
         permit2.approve(usdc, address(router), amountIn, uint48(deadline));
@@ -157,8 +164,12 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
 
+        (address ftn,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
+        bool zeroForOne = ftn != Currency.unwrap(key.currency0);
+
         vm.roll(block.number + 10);
-        buyFundraisingToken(key, amountIn, 1, permit2, router);
+        (address fundraisingTokenAddress,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
+        buyFundraisingToken(key, amountIn, 1, permit2, router, fundraisingTokenAddress);
 
         // Encode V4Router actions
         bytes memory actions =
@@ -169,7 +180,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         params[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: key,
-                zeroForOne: true,
+                zeroForOne: zeroForOne,
                 amountIn: amountIn,
                 amountOutMinimum: minAmountOut,
                 hookData: bytes("")
@@ -209,8 +220,12 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
 
+        (address ftn,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
+        bool zeroForOne = ftn != Currency.unwrap(key.currency0);
+
         vm.roll(block.number + 10);
-        buyFundraisingToken(key, amountIn, 1, permit2, router);
+        (address fundraisingTokenAddress,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
+        buyFundraisingToken(key, amountIn, 1, permit2, router, fundraisingTokenAddress);
 
         // Encode V4Router actions
         bytes memory actions =
@@ -221,15 +236,18 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         params[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: key,
-                zeroForOne: true,
+                zeroForOne: zeroForOne,
                 amountIn: amountIn,
                 amountOutMinimum: minAmountOut,
                 hookData: bytes("")
             })
         );
 
-        params[1] = abi.encode(key.currency0, amountIn);
-        params[2] = abi.encode(key.currency1, minAmountOut);
+        Currency currencyIn = zeroForOne ? key.currency0 : key.currency1;
+        Currency currencyOut = zeroForOne ? key.currency1 : key.currency0;
+
+        params[1] = abi.encode(currencyIn, amountIn);
+        params[2] = abi.encode(currencyOut, minAmountOut);
 
         // Combine actions and params into inputs
         inputs[0] = abi.encode(actions, params);
@@ -241,45 +259,33 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         router.execute(commands, inputs, deadline);
     }
 
-    function testAfterSwapCannotBuyTokenIfBlockToHoldNotPassed() public {
-        factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
-        vm.startPrank(USDC_WHALE);
-        key = factory.getPoolKey(factoryTest.nonProfitOrg());
-
-        uint256 amountToSwap = 100e6;
-        vm.roll(block.number + 10);
-        uint256 minAmountOut = _getMinAmountOut(key, true, uint128(amountToSwap), bytes(""), qouter, slippage);
-        console.log(minAmountOut, "min");
-        //  vm.expectRevert(FundraisingTokenHook.TransactionNotAllowed.selector);
-        console2.logBytes4(FundraisingTokenHook.TransactionNotAllowed.selector);
-        buyFundraisingToken(key, uint128(amountToSwap), uint128(minAmountOut), permit2, router);
-    }
-
     function testBuyAnyTokensAmountAfterHoldingTimePassed() public {
         factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
         vm.startPrank(USDC_WHALE);
         key = factory.getPoolKey(factoryTest.nonProfitOrg());
         uint128 amountIn = 100e6;
+        (address fundraisingTokenAddress,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
 
         // first buy
         vm.roll(block.number + 10);
-        uint256 _minAmountOut1 = _getMinAmountOut(key, true, amountIn, bytes(""), qouter, slippage);
-        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
+
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
 
         //second buy after cool down period passed
         vm.warp(block.timestamp + 2 minutes);
 
-        uint256 _minAmountOut2 = _getMinAmountOut(key, true, amountIn, bytes(""), qouter, slippage);
+        uint256 _minAmountOut2 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
 
-        buyFundraisingToken(key, amountIn, uint128(_minAmountOut2), permit2, router);
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut2), permit2, router, fundraisingTokenAddress);
 
         // third buy after holding time passed
         vm.warp(block.timestamp + 2 hours);
 
         uint128 amountIn3 = 5000e6;
 
-        uint256 _minAmountOut = _getMinAmountOut(key, true, amountIn3, bytes(""), qouter, slippage);
+        uint256 _minAmountOut = _getMinAmountOut(key, amountIn3, bytes(""), qouter, slippage, fundraisingTokenAddress);
 
-        buyFundraisingToken(key, amountIn3, uint128(_minAmountOut), permit2, router);
+        buyFundraisingToken(key, amountIn3, uint128(_minAmountOut), permit2, router, fundraisingTokenAddress);
     }
 }
