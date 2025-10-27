@@ -7,7 +7,7 @@ import {Swap} from "../src/abstracts/Swap.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-
+import {FundRaisingToken} from "../src/FundRaisingToken.sol";
 import {Factory} from "../src/Factory.sol";
 
 contract DonationWalletTest is Test {
@@ -19,7 +19,7 @@ contract DonationWalletTest is Test {
     address public constant permit2 = address(0x9);
     address public constant positionManager = address(0x10);
     address public constant quoter = address(0x11);
-    address public constant fundraisingToken = address(0x12);
+    address public fundraisingToken;
     address donationWalletImplementation;
     address donationWalletBeacon;
     Factory factory;
@@ -32,7 +32,11 @@ contract DonationWalletTest is Test {
         address factoryImplementation = address(new Factory());
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, address(30), bytes(""))));
         factory.initialize(address(20), poolManager, positionManager, router, permit2, quoter, address(21));
-
+        fundraisingToken = address(
+            new FundRaisingToken(
+                "FundRaisingToken", "FRT", 6, address(10), address(10), address(10), address(factory), 2e24, 30e16, 2e16
+            )
+        );
         donationWallet.initialize(
             address(factory),
             nonProfitOrgAddress,
@@ -224,8 +228,15 @@ contract DonationWalletTest is Test {
         assertEq(upkeepNeeded, false);
     }
 
-    // function testCheckUpKeepReturnsFalseIfNoFundraisingTokenAvailable() public view {
-    //     (bool upkeepNeeded,) = donationWallet.checkUpkeep(bytes(""));
-    //     assertEq(upkeepNeeded, false);
-    // }
+    function testCheckUpKeepReturnsFalseIfNoFundraisingTokenAvailable() public view {
+        (bool upkeepNeeded,) = donationWallet.checkUpkeep(bytes(""));
+        assertEq(upkeepNeeded, false);
+    }
+
+    function testCheckUpKeepReturnsTrueIfFundraisingTokenAvailableAndNoEmergencyPause() public {
+        vm.startPrank(address(10));
+        FundRaisingToken(fundraisingToken).transfer(address(donationWallet), 1e6);
+        (bool upkeepNeeded,) = donationWallet.checkUpkeep(bytes(""));
+        assertEq(upkeepNeeded, true);
+    }
 }
