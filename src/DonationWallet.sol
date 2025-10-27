@@ -29,6 +29,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     address public owner; // Owner of the DonationWallet
     address public factoryAddress; // The address of the factory contract
     bool internal paused;
+    address registryAddress; // Address of the registry contract
 
     /**
      * @notice This event is used to log successful transfers to non-profit organizations.
@@ -56,6 +57,11 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         _;
     }
 
+    modifier onlyRegistry(address _addr) {
+        if (_addr != registryAddress) revert NotFactory();
+        _;
+    }
+
     /**
      *
      * @param _factoryAddress The address of the factory contract
@@ -73,12 +79,14 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         address _permit2,
         address _positionManager,
         address _qouter,
-        address _fundraisingToken
+        address _fundraisingToken,
+        address _registryAddress
     ) external initializer nonZeroAddress(_factoryAddress) nonZeroAddress(_owner) nonZeroAddress(_fundraisingToken) {
         __init(_router, _poolManager, _permit2, _positionManager, _qouter);
         owner = _owner;
         factoryAddress = _factoryAddress;
         fundraisingTokenAddress = IERC20(_fundraisingToken);
+        registryAddress = _registryAddress;
     }
 
     /**
@@ -99,7 +107,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     /**
      * See {AutomationCompatibleInterace - performUpkeep}
      */
-    function performUpkeep(bytes calldata performData) external {
+    function performUpkeep(bytes calldata performData) external onlyRegistry(msg.sender) {
         swapFundraisingToken();
     }
 

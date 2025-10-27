@@ -240,7 +240,15 @@ contract Factory is Ownable2StepUpgradeable {
         );
 
         donationWallet.initialize(
-            address(this), _owner, router, poolManager, permit2, positionManager, quoter, address(fundraisingToken)
+            address(this),
+            _owner,
+            router,
+            poolManager,
+            permit2,
+            positionManager,
+            quoter,
+            address(fundraisingToken),
+            registryAddress
         );
 
         treasuryWallet.initialize(
