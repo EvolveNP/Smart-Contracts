@@ -34,6 +34,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     address constant POSITION_MANAGER = address(0x7777);
     address constant QUOTER = address(0x8888);
     address constant LP_MANAGER = address(0x11);
+    address constant STATE_VIEW = address(0x12);
     uint256 constant MIN_HEALTH = 7e16; // 7%
     uint256 constant TRANSFER_INTERVAL = 30 days;
     uint256 constant MIN_LP_HEALTH = 5e16;
@@ -67,7 +68,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
     }
 
@@ -87,7 +89,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
     }
 
@@ -107,7 +110,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
     }
 
@@ -127,7 +131,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
     }
 
@@ -147,7 +152,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
     }
 
@@ -167,7 +173,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
     }
 
@@ -187,7 +194,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
     }
 
@@ -207,7 +215,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
     }
 
@@ -227,7 +236,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
     }
 
@@ -247,7 +257,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(0)
+            address(0),
+            STATE_VIEW
         );
     }
 
@@ -267,7 +278,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             0,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
     }
 
@@ -286,7 +298,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
 
         vm.expectRevert(Initializable.InvalidInitialization.selector); // expected since initialize should only be callable once
@@ -303,7 +316,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
     }
 
@@ -322,7 +336,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             TRANSFER_INTERVAL,
             MIN_LP_HEALTH,
             DEFAULT_TICK,
-            address(fundRaisingToken)
+            address(fundRaisingToken),
+            STATE_VIEW
         );
 
         assertEq(treasuryWallet.donationAddress(), DONATION);

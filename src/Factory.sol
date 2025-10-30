@@ -66,6 +66,7 @@ contract Factory is Ownable2StepUpgradeable {
     int24 public constant defaultTickSpacing = 60; // default tick spacing for the pool
     address public poolManager; // The address of the uniswap v4 pool manager
     address public positionManager; // The address of the uniswap v4 position manager
+    address public stateView; // The address of the uniswap v4 state view
     address public quoter; // Ther address of the uniswap v4 quoter
     address public treasuryWalletBeacon; // treasury wallet beacon
     address public donationWalletBeacon; // donatation wallet beacon
@@ -160,7 +161,8 @@ contract Factory is Ownable2StepUpgradeable {
         address _quoter,
         address _admin,
         address _treasuryWalletBeacon,
-        address _donationWalletBeacon
+        address _donationWalletBeacon,
+        address _stateView
     )
         external
         initializer
@@ -173,6 +175,7 @@ contract Factory is Ownable2StepUpgradeable {
         nonZeroAddress(_admin)
         nonZeroAddress(_treasuryWalletBeacon)
         nonZeroAddress(_donationWalletBeacon)
+        nonZeroAddress(_stateView)
     {
         __Ownable_init(msg.sender);
         registryAddress = _registryAddress;
@@ -184,6 +187,7 @@ contract Factory is Ownable2StepUpgradeable {
         donationWalletBeacon = _donationWalletBeacon;
         admin = _admin;
         quoter = _quoter;
+        stateView = _stateView;
     }
 
     /**
@@ -263,7 +267,8 @@ contract Factory is Ownable2StepUpgradeable {
             _transferInterval,
             _minLPHealthThreshhold,
             _tickSpacing,
-            address(fundraisingToken)
+            address(fundraisingToken),
+            stateView
         );
 
         protocols[_owner] = FundraisingProtocol(

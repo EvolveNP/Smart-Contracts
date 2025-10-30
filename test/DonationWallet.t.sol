@@ -43,7 +43,8 @@ contract DonationWalletTest is Test {
             quoter,
             address(21),
             address(22),
-            donationWalletBeacon
+            donationWalletBeacon,
+            address(23)
         );
         fundraisingToken = address(
             new FundRaisingToken(

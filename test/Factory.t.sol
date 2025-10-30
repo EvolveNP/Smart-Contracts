@@ -30,6 +30,7 @@ contract FactoryTest is Test {
     address public usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address public constant USDC_WHALE = 0x55FE002aefF02F77364de339a1292923A15844B8;
     address public constant quoter = 0x52F0E24D1c21C8A0cB1e5a5dD6198556BD9E1203;
+    address public constant stateView = 0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227;
     uint256 mainnetFork;
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
     uint160 public constant sqrtPriceX96 = 79228162514264337593543950336; // 1:1 price ratio
@@ -72,7 +73,8 @@ contract FactoryTest is Test {
             quoter,
             admin,
             treasuryWalletBeacon,
-            donationWalletBeacon
+            donationWalletBeacon,
+            stateView
         );
 
         factory.createFundraisingVault(
@@ -117,7 +119,8 @@ contract FactoryTest is Test {
             quoter,
             admin,
             treasuryWalletBeacon,
-            donationWalletBeacon
+            donationWalletBeacon,
+            stateView
         );
     }
 
@@ -134,7 +137,8 @@ contract FactoryTest is Test {
             quoter,
             admin,
             treasuryWalletBeacon,
-            donationWalletBeacon
+            donationWalletBeacon,
+            stateView
         );
     }
 
@@ -151,7 +155,8 @@ contract FactoryTest is Test {
             quoter,
             admin,
             treasuryWalletBeacon,
-            donationWalletBeacon
+            donationWalletBeacon,
+            stateView
         );
     }
 
@@ -168,7 +173,8 @@ contract FactoryTest is Test {
             quoter,
             admin,
             treasuryWalletBeacon,
-            donationWalletBeacon
+            donationWalletBeacon,
+            stateView
         );
     }
 
@@ -185,7 +191,8 @@ contract FactoryTest is Test {
             quoter,
             admin,
             address(0),
-            donationWalletBeacon
+            donationWalletBeacon,
+            stateView
         );
     }
 
@@ -202,7 +209,8 @@ contract FactoryTest is Test {
             quoter,
             admin,
             treasuryWalletBeacon,
-            address(0)
+            address(0),
+            stateView
         );
     }
 
@@ -219,7 +227,8 @@ contract FactoryTest is Test {
             quoter,
             admin,
             treasuryWalletBeacon,
-            donationWalletBeacon
+            donationWalletBeacon,
+            stateView
         );
     }
 
@@ -236,7 +245,8 @@ contract FactoryTest is Test {
             quoter,
             admin,
             treasuryWalletBeacon,
-            donationWalletBeacon
+            donationWalletBeacon,
+            stateView
         );
     }
 
@@ -253,7 +263,8 @@ contract FactoryTest is Test {
             address(0),
             admin,
             treasuryWalletBeacon,
-            donationWalletBeacon
+            donationWalletBeacon,
+            stateView
         );
     }
 
@@ -270,7 +281,26 @@ contract FactoryTest is Test {
             quoter,
             address(0),
             treasuryWalletBeacon,
-            donationWalletBeacon
+            donationWalletBeacon,
+            stateView
+        );
+    }
+
+    function testInitializeRevertsOnZeroStateViewAddress() public {
+        address factoryImplementation = address(new Factory());
+        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.initialize(
+            registryAddress,
+            poolManager,
+            positionManager,
+            router,
+            permit2,
+            quoter,
+            admin,
+            treasuryWalletBeacon,
+            donationWalletBeacon,
+            address(0)
         );
     }
 
