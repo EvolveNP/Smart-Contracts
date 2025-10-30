@@ -73,12 +73,10 @@ abstract contract BuyFundraisingTokens {
         uint256 slippage,
         address _fundraisingTokenAddress
     ) internal returns (uint256 minAmountAmount) {
-        bool _isCurrency0FundraisingToken = _fundraisingTokenAddress == Currency.unwrap(_key.currency0);
+        bool _isCurrency0FundraisingToken =
+            _fundraisingTokenAddress == Currency.unwrap(_key.currency0);
         IV4Quoter.QuoteExactSingleParams memory params = IV4Quoter.QuoteExactSingleParams({
-            poolKey: _key,
-            zeroForOne: !_isCurrency0FundraisingToken,
-            exactAmount: _exactAmount,
-            hookData: _hookData
+            poolKey: _key, zeroForOne: !_isCurrency0FundraisingToken, exactAmount: _exactAmount, hookData: _hookData
         });
 
         (uint256 amountOut,) = qouter.quoteExactInputSingle(params);

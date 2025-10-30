@@ -97,11 +97,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     /**
      * See {AutomationCompatibleInterace - checkUpKeep}
      */
-    function checkUpkeep(bytes calldata checkData)
-        external
-        view
-        returns (bool upkeepNeeded, bytes memory performData)
-    {
+    function checkUpkeep(bytes calldata checkData) external view returns (bool upkeepNeeded, bytes memory performData) {
         bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
         upkeepNeeded = !emergencyPauseEnabled && IERC20(fundraisingTokenAddress).balanceOf(address(this)) > 0;
 

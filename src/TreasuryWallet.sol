@@ -116,11 +116,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
      * See {AutomationCompatibleInterace - checkUpKeep}
      */
-    function checkUpkeep(bytes calldata checkData)
-        external
-        view
-        returns (bool upkeepNeeded, bytes memory performData)
-    {
+    function checkUpkeep(bytes calldata checkData) external view returns (bool upkeepNeeded, bytes memory performData) {
         uint256 transferDate = lastTransferTimestamp + transferInterval;
         uint256 lpCurrentThreshold = getCurrentLPHealthThreshold();
         bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());

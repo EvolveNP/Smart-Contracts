@@ -129,10 +129,7 @@ abstract contract Swap is Initializable {
         returns (uint256 minAmountAmount)
     {
         IV4Quoter.QuoteExactSingleParams memory params = IV4Quoter.QuoteExactSingleParams({
-            poolKey: _key,
-            zeroForOne: _zeroForOne,
-            exactAmount: _exactAmount,
-            hookData: _hookData
+            poolKey: _key, zeroForOne: _zeroForOne, exactAmount: _exactAmount, hookData: _hookData
         });
 
         (uint256 amountOut,) = qouter.quoteExactInputSingle(params);

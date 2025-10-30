@@ -11,6 +11,8 @@ contract DonationWalletScript is Script, Config {
         uint256 chainId = block.chainid;
         console.log("Deploying to chain:", chainId);
 
+        _loadConfig("./deployments.toml", true);
+
         vm.startBroadcast();
 
         DonationWallet donationWalletImplementation = new DonationWallet();

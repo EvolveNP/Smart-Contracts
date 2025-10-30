@@ -8,7 +8,7 @@ import {Config} from "forge-std/Config.sol";
 contract USDCScript is Script, Config {
     function run() public {
         _loadConfig("./deployments.toml", true);
-       
+
         uint256 chainId = block.chainid;
         console.log("Deploying to chain:", chainId);
 

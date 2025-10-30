@@ -275,9 +275,7 @@ contract DonationWalletTest is Test {
             address fundraisingTokenAddress,
             address underlyingAddress,
             address treasuryAddress,
-            address _donationWallet,
-            ,
-            ,
+            address _donationWallet,,,
         ) = _factory.protocols(nonProfigOrg);
 
         TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));
@@ -307,9 +305,7 @@ contract DonationWalletTest is Test {
             address fundraisingTokenAddress,
             address underlyingAddress,
             address treasuryAddress,
-            address _donationWallet,
-            ,
-            ,
+            address _donationWallet,,,
         ) = _factory.protocols(nonProfigOrg);
         assertEq(underlyingAddress, address(0));
         TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));
