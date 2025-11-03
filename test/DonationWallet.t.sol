@@ -48,7 +48,7 @@ contract DonationWalletTest is Test {
         );
         fundraisingToken = address(
             new FundRaisingToken(
-                "FundRaisingToken", "FRT", 6, address(10), address(10), address(10), address(factory), 2e24, 30e16, 2e16
+                "FundRaisingToken", "FRT", 6, address(10), address(10), address(10), address(factory), 2e24
             )
         );
         donationWallet.initialize(

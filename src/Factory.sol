@@ -202,17 +202,8 @@ contract Factory is Ownable2StepUpgradeable {
         string calldata _tokenName,
         string calldata _tokenSymbol,
         address _underlyingAddress,
-        address _owner,
-        uint256 _taxFee,
-        uint256 _maximumThreshold,
-        uint256 _minimumHealthThreshhold,
-        uint256 _transferInterval,
-        uint256 _minLPHealthThreshhold,
-        int24 _tickSpacing
+        address _owner
     ) external nonZeroAddress(_owner) onlyOwner {
-        // Liquidity min Health threshold should be greater than or equal to 5e16
-        if (_minLPHealthThreshhold < 5e16) revert InvlidLPHealthThreshold();
-
         if (protocols[_owner].fundraisingToken != address(0)) {
             revert VaultAlreadyExists();
         }
@@ -237,9 +228,7 @@ contract Factory is Ownable2StepUpgradeable {
             address(treasuryWallet),
             address(donationWallet),
             address(this),
-            totalSupply * 10 ** _decimals,
-            _taxFee,
-            _maximumThreshold
+            totalSupply * 10 ** _decimals
         );
 
         donationWallet.initialize(
@@ -263,10 +252,7 @@ contract Factory is Ownable2StepUpgradeable {
             permit2,
             positionManager,
             quoter,
-            _minimumHealthThreshhold,
-            _transferInterval,
-            _minLPHealthThreshhold,
-            _tickSpacing,
+            defaultTickSpacing,
             address(fundraisingToken),
             stateView
         );
