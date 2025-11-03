@@ -31,7 +31,6 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     IERC20 public fundraisingTokenAddress; // Address of the FundRaisingToken contract
     address public owner; // Owner of the DonationWallet
     address public factoryAddress; // The address of the factory contract
-    bool internal paused;
     address registryAddress; // Address of the registry contract
 
     /**
@@ -98,8 +97,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      * See {AutomationCompatibleInterace - checkUpKeep}
      */
     function checkUpkeep(bytes calldata checkData) external view returns (bool upkeepNeeded, bytes memory performData) {
-        bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
-        upkeepNeeded = !emergencyPauseEnabled && IERC20(fundraisingTokenAddress).balanceOf(address(this)) > 0;
+        upkeepNeeded = IERC20(fundraisingTokenAddress).balanceOf(address(this)) > 0;
 
         performData = bytes("");
     }
@@ -139,16 +137,5 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
             if (!success) revert TransferFailed();
         }
         emit FundsTransferredToNonProfit(owner, amountOut);
-    }
-
-    /**
-     * @notice Enables or disables emergency pause
-     * @param _pause set true to enable emergency pause otherwise set false
-     * @dev Only factory can set emergency pause
-     */
-    function emergencyPause(bool _pause) external onlyFactory {
-        if (paused == _pause) revert EmergencyPauseAlreadySet();
-        paused = _pause;
-        emit Paused(_pause);
     }
 }

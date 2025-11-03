@@ -214,40 +214,12 @@ contract DonationWalletTest is Test {
         vm.stopPrank();
     }
 
-    function test_emergencyPuase_only_called_by_factory() public {
-        vm.startPrank(address(20));
-        vm.expectRevert(DonationWallet.NotFactory.selector);
-        donationWallet.emergencyPause(true);
-        vm.stopPrank();
-    }
-
-    function testEmergencyPauseCannotSetSameEmergencyStatusTwice() public {
-        vm.startPrank(address(factory));
-        donationWallet.emergencyPause(true);
-        vm.expectRevert(DonationWallet.EmergencyPauseAlreadySet.selector);
-        donationWallet.emergencyPause(true);
-    }
-
-    function testCheckUpKeepReturnsFalseIfEmergencyPauseEnabledInDonation() public {
-        vm.startPrank(address(factory));
-        donationWallet.emergencyPause(true);
-        (bool upkeepNeeded,) = donationWallet.checkUpkeep(bytes(""));
-        assertEq(upkeepNeeded, false);
-    }
-
-    function testCheckUpKeepReturnsFalseIfEmergencyPauseEnabledFromFactory() public {
-        vm.startPrank(address(21));
-        factory.setEmergencyPause(true);
-        (bool upkeepNeeded,) = donationWallet.checkUpkeep(bytes(""));
-        assertEq(upkeepNeeded, false);
-    }
-
     function testCheckUpKeepReturnsFalseIfNoFundraisingTokenAvailable() public view {
         (bool upkeepNeeded,) = donationWallet.checkUpkeep(bytes(""));
         assertEq(upkeepNeeded, false);
     }
 
-    function testCheckUpKeepReturnsTrueIfFundraisingTokenAvailableAndNoEmergencyPause() public {
+    function testCheckUpKeepReturnsTrueIfFundraisingTokenAvailable() public {
         vm.startPrank(address(10));
         FundRaisingToken(fundraisingToken).transfer(address(donationWallet), 1e6);
         (bool upkeepNeeded,) = donationWallet.checkUpkeep(bytes(""));

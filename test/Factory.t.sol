@@ -545,22 +545,4 @@ contract FactoryTest is Test {
         emit Factory.TreasuryEmergencyPauseSet(nonProfitOrg, treasuryWalletAddress, true);
         factory.setTreasuryEmergencyPause(nonProfitOrg, true);
     }
-
-    function testSetDonationEmergencyPauseRevertsIfNonProfitOrgAddressIsZeroAddress() public {
-        vm.expectRevert(Factory.ZeroAddress.selector);
-        factory.setDonationEmergencyPause(address(0), true);
-    }
-
-    function testSetDonationEmergencyPauseRevertsIfNotCalledByNonProfitOrg() public {
-        vm.expectRevert(Factory.OnlyCalledByNonProfitOrg.selector);
-        factory.setDonationEmergencyPause(nonProfitOrg, true);
-    }
-
-    function testSetDonationEmergencyPauseEmitsDonationEmergencyPauseSetEvent() public {
-        vm.startPrank(nonProfitOrg);
-        vm.expectEmit(true, true, false, false);
-
-        emit Factory.DonationEmergencyPauseSet(nonProfitOrg, donationWalletAddress, true);
-        factory.setDonationEmergencyPause(nonProfitOrg, true);
-    }
 }

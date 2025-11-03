@@ -5,7 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 
 import {FundRaisingToken} from "../src/FundRaisingToken.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {console} from "forge-std/console.sol";
+import {TreasuryWallet} from "../src/TreasuryWallet.sol";
 
 contract FundRaisingTokenTest is Test {
     FundRaisingToken public fundRaisingToken;

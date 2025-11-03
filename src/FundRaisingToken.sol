@@ -2,6 +2,7 @@
 pragma solidity 0.8.26;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ITreasury} from "./interfaces/ITreasury.sol";
 
 contract FundRaisingToken is ERC20 {
     /**
@@ -109,6 +110,12 @@ contract FundRaisingToken is ERC20 {
             from == factoryAddress || to == factoryAddress || from == donationAddress || to == donationAddress
                 || from == treasuryAddress || to == treasuryAddress
         ) {
+            super._update(from, to, amount);
+            return;
+        }
+
+        // If treasury is paused, skip taxation
+        if (ITreasury(treasuryAddress).isTreasuryPaused()) {
             super._update(from, to, amount);
             return;
         }

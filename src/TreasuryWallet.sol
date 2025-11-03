@@ -30,6 +30,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     error OnlyRegistry();
     error TransferFailed();
     error EmergencyPauseAlreadySet();
+    error TreasuryNotPaused();
+    error NoFundsAvailableForEmergencyWithdraw();
     /**
      * State Variables
      */
@@ -309,12 +311,19 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         paused = _pause;
     }
 
-    function emergencyWithdraw(address _to) external onlyFactory {
+    function emergencyWithdraw(address _to) external onlyFactory returns (uint256) {
         uint256 availableAmount = fundraisingToken.balanceOf(address(this));
+        if (!isTreasuryPaused()) revert TreasuryNotPaused();
+        if (availableAmount == 0) revert NoFundsAvailableForEmergencyWithdraw();
+
         withdrawnAmountOnEmergency = availableAmount;
-        if (availableAmount > 0) {
-            fundraisingToken.transfer(_to, availableAmount);
-        }
-        emit EmergencyWithdrawn(_to, availableAmount);
+
+        fundraisingToken.transfer(_to, availableAmount);
+
+        return availableAmount;
+    }
+
+    function isTreasuryPaused() public view returns (bool) {
+        return paused || IFactory(factoryAddress).pauseAll();
     }
 }
