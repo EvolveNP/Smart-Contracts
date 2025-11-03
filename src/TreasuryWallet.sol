@@ -47,7 +47,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     uint256 internal constant MULTIPLIER = 1e18;
     int24 internal tickSpacing;
     bool paused;
-    address stateView;
+    address stateView; // The address of the uniswap state view contract
+    uint256 withdrawnAmountOnEmergency; // The amount withdrawn during emergency
     /**
      * Events
      */
@@ -55,6 +56,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     event FundTransferredToDonationWallet(uint256 amountTransferredAndBurned);
     event LPHealthAdjusted(address recipient, uint256 amount0, uint256 amount1);
     event Paused(bool paused);
+    event EmergencyWithdrawn(address to, uint256 amount);
 
     /**
      * Modifiers
@@ -305,5 +307,14 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     function emergencyPause(bool _pause) external onlyFactory {
         if (paused == _pause) revert EmergencyPauseAlreadySet();
         paused = _pause;
+    }
+
+    function emergencyWithdraw(address _to) external onlyFactory {
+        uint256 availableAmount = fundraisingToken.balanceOf(address(this));
+        withdrawnAmountOnEmergency = availableAmount;
+        if (availableAmount > 0) {
+            fundraisingToken.transfer(_to, availableAmount);
+        }
+        emit EmergencyWithdrawn(_to, availableAmount);
     }
 }
