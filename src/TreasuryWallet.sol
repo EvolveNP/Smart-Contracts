@@ -46,11 +46,11 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     uint256 internal constant MULTIPLIER = 1e18;
     int24 internal tickSpacing;
     bool paused;
-    address constant STATE_VIEW = 0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227;
-
+    address stateView;
     /**
      * Events
      */
+
     event FundTransferredToDonationWallet(uint256 amountTransferredAndBurned);
     event LPHealthAdjusted(address recipient, uint256 amount0, uint256 amount1);
     event Paused(bool paused);
@@ -89,7 +89,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         uint256 _transferInterval,
         uint256 _minLPHealthThreshhold,
         int24 _tickSpacing,
-        address _fundraisingToken
+        address _fundraisingToken,
+        address _stateView
     )
         external
         initializer
@@ -103,6 +104,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         donationAddress = _donationAddress;
         factoryAddress = _factoryAddress;
         registryAddress = _registryAddress;
+        stateView = _stateView;
         minimumHealthThreshhold = _minimumHealthThreshhold;
         transferInterval = _transferInterval;
         minLPHealthThreshhold = _minLPHealthThreshhold;
@@ -114,11 +116,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
      * See {AutomationCompatibleInterace - checkUpKeep}
      */
-    function checkUpkeep(bytes calldata checkData)
-        external
-        view
-        returns (bool upkeepNeeded, bytes memory performData)
-    {
+    function checkUpkeep(bytes calldata checkData) external view returns (bool upkeepNeeded, bytes memory performData) {
         uint256 transferDate = lastTransferTimestamp + transferInterval;
         uint256 lpCurrentThreshold = getCurrentLPHealthThreshold();
         bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());
@@ -270,7 +268,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
             params[2] = abi.encode(address(0), _owner); // only for ETH liquidity positions
         }
 
-        (uint160 sqrtPriceX96,,,) = IStateView(STATE_VIEW).getSlot0(key.toId());
+        (uint160 sqrtPriceX96,,,) = IStateView(stateView).getSlot0(key.toId());
 
         (int24 tickLower, int24 tickUpper) = Helper.getMinAndMaxTick(sqrtPriceX96, tickSpacing);
 

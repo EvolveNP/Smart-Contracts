@@ -34,7 +34,18 @@ contract DonationWalletTest is Test {
         donationWallet = DonationWallet(payable(address(new BeaconProxy(donationWalletBeacon, ""))));
         address factoryImplementation = address(new Factory());
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, address(30), bytes(""))));
-        factory.initialize(address(20), poolManager, positionManager, router, permit2, quoter, address(21));
+        factory.initialize(
+            address(20),
+            poolManager,
+            positionManager,
+            router,
+            permit2,
+            quoter,
+            address(21),
+            address(22),
+            donationWalletBeacon,
+            address(23)
+        );
         fundraisingToken = address(
             new FundRaisingToken(
                 "FundRaisingToken", "FRT", 6, address(10), address(10), address(10), address(factory), 2e24, 30e16, 2e16
@@ -264,9 +275,7 @@ contract DonationWalletTest is Test {
             address fundraisingTokenAddress,
             address underlyingAddress,
             address treasuryAddress,
-            address _donationWallet,
-            ,
-            ,
+            address _donationWallet,,,
         ) = _factory.protocols(nonProfigOrg);
 
         TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));
@@ -296,9 +305,7 @@ contract DonationWalletTest is Test {
             address fundraisingTokenAddress,
             address underlyingAddress,
             address treasuryAddress,
-            address _donationWallet,
-            ,
-            ,
+            address _donationWallet,,,
         ) = _factory.protocols(nonProfigOrg);
         assertEq(underlyingAddress, address(0));
         TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));

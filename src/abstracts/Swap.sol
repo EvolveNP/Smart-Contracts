@@ -25,6 +25,7 @@ abstract contract Swap is Initializable {
 
     error ZeroAddress();
     error ZeroAmount();
+    error InsufficientOutputAmount();
 
     modifier nonZeroAddress(address _address) {
         if (_address == address(0)) revert ZeroAddress();
@@ -92,13 +93,29 @@ abstract contract Swap is Initializable {
         // Execute the swap
         uint256 deadline = block.timestamp + 20;
 
+        uint256 balanceBeforeSwap;
+        uint256 balanceAfterSwap;
+        if (Currency.unwrap(currencyOut) == address(0)) {
+            balanceBeforeSwap = address(this).balance;
+        } else {
+            balanceBeforeSwap = _isCurrency0FundraisingToken
+                ? key.currency1.balanceOf(address(this))
+                : key.currency0.balanceOf(address(this));
+        }
+
         approveTokenWithPermit2(currencyInAddress, uint160(amountIn), uint48(deadline));
 
         router.execute(commands, inputs, deadline);
 
-        // Verify and return the output amount
-        amountOut = key.currency0.balanceOf(address(this));
-        require(amountOut >= minAmountOut, "Insufficient output amount");
+        if (Currency.unwrap(currencyOut) == address(0)) {
+            balanceAfterSwap = address(this).balance;
+        } else {
+            balanceAfterSwap = _isCurrency0FundraisingToken
+                ? key.currency1.balanceOf(address(this))
+                : key.currency0.balanceOf(address(this));
+        }
+        amountOut = balanceAfterSwap - balanceBeforeSwap;
+        if (amountOut < minAmountOut) revert InsufficientOutputAmount();
         return amountOut;
     }
 
@@ -112,10 +129,7 @@ abstract contract Swap is Initializable {
         returns (uint256 minAmountAmount)
     {
         IV4Quoter.QuoteExactSingleParams memory params = IV4Quoter.QuoteExactSingleParams({
-            poolKey: _key,
-            zeroForOne: _zeroForOne,
-            exactAmount: _exactAmount,
-            hookData: _hookData
+            poolKey: _key, zeroForOne: _zeroForOne, exactAmount: _exactAmount, hookData: _hookData
         });
 
         (uint256 amountOut,) = qouter.quoteExactInputSingle(params);
