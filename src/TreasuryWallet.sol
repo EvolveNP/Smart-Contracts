@@ -58,7 +58,6 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     event FundTransferredToDonationWallet(uint256 amountTransferredAndBurned);
     event LPHealthAdjusted(address recipient, uint256 amount0, uint256 amount1);
     event Paused(bool paused);
-    event EmergencyWithdrawn(address to, uint256 amount);
 
     /**
      * Modifiers
