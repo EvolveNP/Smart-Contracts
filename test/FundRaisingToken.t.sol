@@ -5,7 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 
 import {FundRaisingToken} from "../src/FundRaisingToken.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {console} from "forge-std/console.sol";
+import {TreasuryWallet} from "../src/TreasuryWallet.sol";
 
 contract FundRaisingTokenTest is Test {
     FundRaisingToken public fundRaisingToken;
@@ -20,143 +20,58 @@ contract FundRaisingTokenTest is Test {
 
     function setUp() public {
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken",
-            "FRT",
-            6,
-            lpManager,
-            treasuryAddress,
-            donationAddress,
-            factoryAddress,
-            totalSupply,
-            maximumThreshold,
-            taxFee
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, totalSupply
         );
     }
 
     function testConstructorRevertsOnZeroLPManagerAddress() public {
         vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
         new FundRaisingToken(
-            "FundRaisingToken",
-            "FRT",
-            6,
-            address(0),
-            treasuryAddress,
-            donationAddress,
-            factoryAddress,
-            1e24,
-            maximumThreshold,
-            taxFee
+            "FundRaisingToken", "FRT", 6, address(0), treasuryAddress, donationAddress, factoryAddress, 1e24
         );
     }
 
     function testConstructorRevertsOnZeroTreasuryAddress() public {
         vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
-        new FundRaisingToken(
-            "FundRaisingToken",
-            "FRT",
-            6,
-            lpManager,
-            address(0),
-            donationAddress,
-            factoryAddress,
-            1e24,
-            maximumThreshold,
-            taxFee
-        );
+        new FundRaisingToken("FundRaisingToken", "FRT", 6, lpManager, address(0), donationAddress, factoryAddress, 1e24);
     }
 
     function testConstructorRevertsOnZeroDonationAddress() public {
         vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
-        new FundRaisingToken(
-            "FundRaisingToken",
-            "FRT",
-            6,
-            lpManager,
-            treasuryAddress,
-            address(0),
-            factoryAddress,
-            1e24,
-            maximumThreshold,
-            taxFee
-        );
+        new FundRaisingToken("FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, address(0), factoryAddress, 1e24);
     }
 
     function testConstructorRevertsOnZeroFactoryAddress() public {
         vm.expectRevert(FundRaisingToken.ZeroAddress.selector);
         new FundRaisingToken(
-            "FundRaisingToken",
-            "FRT",
-            6,
-            lpManager,
-            treasuryAddress,
-            donationAddress,
-            address(0),
-            1e24,
-            maximumThreshold,
-            taxFee
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, address(0), 1e24
         );
     }
 
     function testConstructorRevertsOnZeroTotalSupplyValue() public {
         vm.expectRevert(FundRaisingToken.ZeroAmount.selector);
         new FundRaisingToken(
-            "FundRaisingToken",
-            "FRT",
-            6,
-            lpManager,
-            treasuryAddress,
-            donationAddress,
-            factoryAddress,
-            0,
-            maximumThreshold,
-            taxFee
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, 0
         );
     }
 
     function testConstructorMintsCorrectAmountToLPManager() public {
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken",
-            "FRT",
-            6,
-            lpManager,
-            treasuryAddress,
-            donationAddress,
-            factoryAddress,
-            1e24,
-            maximumThreshold,
-            taxFee
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, 1e24
         );
         assertEq(fundRaisingToken.balanceOf(lpManager), 75e22);
     }
 
     function testConstructorMintsCorrectAmountToTreasury() public {
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken",
-            "FRT",
-            6,
-            lpManager,
-            treasuryAddress,
-            donationAddress,
-            factoryAddress,
-            2e24,
-            maximumThreshold,
-            taxFee
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, 2e24
         );
         assertEq(fundRaisingToken.balanceOf(lpManager), 150e22);
     }
 
     function testConstructorSetAllAddressesCorrectly() public {
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken",
-            "FRT",
-            6,
-            lpManager,
-            treasuryAddress,
-            donationAddress,
-            factoryAddress,
-            1e24,
-            maximumThreshold,
-            taxFee
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, 1e24
         );
         assertEq(fundRaisingToken.lpManager(), lpManager);
         assertEq(fundRaisingToken.treasuryAddress(), treasuryAddress);
@@ -165,16 +80,7 @@ contract FundRaisingTokenTest is Test {
 
     function testConstructorSetTotalSupplyCorrectly() public {
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken",
-            "FRT",
-            6,
-            lpManager,
-            treasuryAddress,
-            donationAddress,
-            factoryAddress,
-            5e24,
-            maximumThreshold,
-            taxFee
+            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, 5e24
         );
         assertEq(fundRaisingToken.totalSupply(), 5e24);
     }

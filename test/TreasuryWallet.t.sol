@@ -52,7 +52,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         address factoryImplementation = address(new Factory());
         factoryProxy = address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes("")));
         fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken", "FRT", 6, LP_MANAGER, address(treasuryWallet), DONATION, FACTORY, 1e27, 2e16, 30e16
+            "FundRaisingToken", "FRT", 6, LP_MANAGER, address(treasuryWallet), DONATION, FACTORY, 1e27
         );
 
         treasuryWallet.initialize(
@@ -64,9 +64,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             POSITION_MANAGER,
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -85,9 +82,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             POSITION_MANAGER,
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -106,9 +100,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             POSITION_MANAGER,
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -127,9 +118,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             POSITION_MANAGER,
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -148,9 +136,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             POSITION_MANAGER,
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -169,9 +154,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             POSITION_MANAGER,
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -190,9 +172,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             address(0),
             POSITION_MANAGER,
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -211,9 +190,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             address(0),
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -232,9 +208,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             POSITION_MANAGER,
             address(0),
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -253,32 +226,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             POSITION_MANAGER,
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(0),
-            STATE_VIEW
-        );
-    }
-
-    function testRevertOnZeroTransferInterval() public {
-        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
-        vm.expectRevert(Swap.ZeroAmount.selector); // should revert due to nonZeroAddress modifier
-        treasuryWallet.initialize(
-            DONATION,
-            FACTORY,
-            REGISTRY,
-            ROUTER,
-            POOL_MANAGER,
-            PERMIT2,
-            POSITION_MANAGER,
-            QUOTER,
-            MIN_HEALTH,
-            0,
-            MIN_LP_HEALTH,
-            DEFAULT_TICK,
-            address(fundRaisingToken),
             STATE_VIEW
         );
     }
@@ -294,9 +243,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             POSITION_MANAGER,
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -312,9 +258,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             POSITION_MANAGER,
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -332,9 +275,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
             PERMIT2,
             POSITION_MANAGER,
             QUOTER,
-            MIN_HEALTH,
-            TRANSFER_INTERVAL,
-            MIN_LP_HEALTH,
             DEFAULT_TICK,
             address(fundRaisingToken),
             STATE_VIEW
@@ -343,7 +283,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         assertEq(treasuryWallet.donationAddress(), DONATION);
         assertEq(treasuryWallet.factoryAddress(), FACTORY);
         assertEq(treasuryWallet.registryAddress(), REGISTRY);
-        assertEq(treasuryWallet.minimumHealthThreshhold(), MIN_HEALTH);
         assertEq(treasuryWallet.transferInterval(), TRANSFER_INTERVAL);
     }
 
@@ -359,7 +298,9 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
 
     function testCheckUpkeepReturnsFalseIfTransferIntervalNotReached() public {
         vm.startPrank(LP_MANAGER);
-        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * MIN_LP_HEALTH) / MULTIPLIER;
+        // on transfer tax is routed to treasury wallet, so adding extra amount to treasury to keep lp healthy
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH + 2e16)) / MULTIPLIER;
+
         fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP); // send FTN token to pool manager. consider it is in Liquidity pool
         (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
         assertEq(upkeepNeeded, false);
@@ -369,11 +310,11 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     function testCheckUpkeepReturnsFalseIfTransferNotAllowedAndLPIsHealthy() public {
         vm.startPrank(address(treasuryWallet));
         // transfer FTN to donation to make treasury balance less than min health
-        fundRaisingToken.transfer(DONATION, 200000000000000000000000000);
+        fundRaisingToken.transfer(DONATION, 210000000000000000000000000);
         vm.stopPrank();
         vm.warp(31 days);
         vm.startPrank(LP_MANAGER);
-        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * MIN_LP_HEALTH) / MULTIPLIER;
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH + 2e16)) / MULTIPLIER;
         fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP); // send FTN token to pool manager. consider it is in Liquidity pool
         (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
         assertEq(upkeepNeeded, false);
@@ -383,12 +324,12 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     function testCheckUpkeepReturnsTrueIfLPIsNotHealthyAndTransferNotAllowed() public {
         vm.startPrank(address(treasuryWallet));
         // transfer FTN to donation to make treasury balance less than min health
-        fundRaisingToken.transfer(DONATION, 200000000000000000000000000);
+        fundRaisingToken.transfer(DONATION, 210000000000000000000000000);
         vm.stopPrank();
         vm.warp(31 days);
         vm.startPrank(LP_MANAGER);
-        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH - 15e15)) / MULTIPLIER;
-        fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP - 2000); // send FTN token to pool manager. consider it is in Liquidity pool
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH - 2000)) / MULTIPLIER;
+        fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP); // send FTN token to pool manager. consider it is in Liquidity pool
         (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
         assertEq(upkeepNeeded, true);
         bytes memory _performData = abi.encode(false, true);
@@ -398,8 +339,8 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     function testCheckUpkeepReturnsUpKeepNeededTrueAndInitiateAddLiquidityAndInitiateTransferTrue() public {
         vm.warp(31 days);
         vm.startPrank(LP_MANAGER);
-        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH - 15e15)) / MULTIPLIER;
-        fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP - 2000); // send FTN token to pool manager. consider it is in Liquidity pool
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH)) / MULTIPLIER;
+        fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP); // send FTN token to pool manager. consider it is in Liquidity pool
         (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
         assertEq(upkeepNeeded, true);
         bytes memory _performData = abi.encode(true, true);

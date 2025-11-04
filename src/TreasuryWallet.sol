@@ -30,6 +30,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     error OnlyRegistry();
     error TransferFailed();
     error EmergencyPauseAlreadySet();
+    error TreasuryNotPaused();
+    error NoFundsAvailableForEmergencyWithdraw();
     /**
      * State Variables
      */
@@ -40,13 +42,15 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     address public registryAddress; // The address of the chainlink registry contract
     uint256 public lastTransferTimestamp;
 
-    uint256 public minimumHealthThreshhold; // The minimum threshold for transferring funds
-    uint256 public transferInterval; // The interval at which funds transferred to donation wallet
-    uint256 internal minLPHealthThreshhold; // The health threshold
+    uint256 constant minimumHealthThreshhold = 5e16; // The minimum threshold for transferring funds
+    uint256 constant minimumHealthThreshholdToAddLP = 15e15; // The minimum threshold to add liquidity to the pool
+    uint256 public constant transferInterval = 30 days; // The interval at which funds transferred to donation wallet
+    uint256 public constant minLPHealthThreshhold = 5e16; // The health threshold
     uint256 internal constant MULTIPLIER = 1e18;
     int24 internal tickSpacing;
     bool paused;
-    address stateView;
+    address stateView; // The address of the uniswap state view contract
+    uint256 withdrawnAmountOnEmergency; // The amount withdrawn during emergency
     /**
      * Events
      */
@@ -85,9 +89,6 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         address _permit2,
         address _positionManager,
         address _quoter,
-        uint256 _minimumHealthThreshhold,
-        uint256 _transferInterval,
-        uint256 _minLPHealthThreshhold,
         int24 _tickSpacing,
         address _fundraisingToken,
         address _stateView
@@ -98,16 +99,12 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         nonZeroAddress(_factoryAddress)
         nonZeroAddress(_fundraisingToken)
         nonZeroAddress(_registryAddress)
-        nonZeroAmount(_transferInterval)
     {
         __init(_router, _poolManager, _permit2, _positionManager, _quoter);
         donationAddress = _donationAddress;
         factoryAddress = _factoryAddress;
         registryAddress = _registryAddress;
         stateView = _stateView;
-        minimumHealthThreshhold = _minimumHealthThreshhold;
-        transferInterval = _transferInterval;
-        minLPHealthThreshhold = _minLPHealthThreshhold;
         tickSpacing = _tickSpacing;
         fundraisingToken = IFundraisingToken(_fundraisingToken);
         lastTransferTimestamp = block.timestamp;
@@ -119,8 +116,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     function checkUpkeep(bytes calldata checkData) external view returns (bool upkeepNeeded, bytes memory performData) {
         uint256 transferDate = lastTransferTimestamp + transferInterval;
         uint256 lpCurrentThreshold = getCurrentLPHealthThreshold();
-        bool initiateTransfer = (block.timestamp >= transferDate && isTransferAllowed());
-        bool initiateAddLiqudity = ((minLPHealthThreshhold - 15e15) > lpCurrentThreshold);
+        bool initiateTransfer = ((block.timestamp >= transferDate) && isTransferAllowed());
+        bool initiateAddLiqudity = (minLPHealthThreshhold > lpCurrentThreshold);
         bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
         upkeepNeeded = !emergencyPauseEnabled && (initiateTransfer || initiateAddLiqudity);
 
@@ -156,8 +153,9 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      */
     function adjustLPHealth() internal {
         uint256 lpBalance = fundraisingToken.balanceOf(address(poolManager));
+        // adjust LP threshold to 6.5% if current threshold is below 5%
         uint256 amountToAddToLP =
-            ((fundraisingToken.totalSupply() * (minimumHealthThreshhold)) / MULTIPLIER) - lpBalance;
+            ((fundraisingToken.totalSupply() * (minimumHealthThreshhold + 15e16)) / MULTIPLIER) - lpBalance;
 
         // swap half of the fundraising token to underlying token
         uint256 amountToSwap = amountToAddToLP / 2;
@@ -310,5 +308,21 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     function emergencyPause(bool _pause) external onlyFactory {
         if (paused == _pause) revert EmergencyPauseAlreadySet();
         paused = _pause;
+    }
+
+    function emergencyWithdraw(address _to) external onlyFactory returns (uint256) {
+        uint256 availableAmount = fundraisingToken.balanceOf(address(this));
+        if (!isTreasuryPaused()) revert TreasuryNotPaused();
+        if (availableAmount == 0) revert NoFundsAvailableForEmergencyWithdraw();
+
+        withdrawnAmountOnEmergency = availableAmount;
+
+        fundraisingToken.transfer(_to, availableAmount);
+
+        return availableAmount;
+    }
+
+    function isTreasuryPaused() public view returns (bool) {
+        return paused || IFactory(factoryAddress).pauseAll();
     }
 }

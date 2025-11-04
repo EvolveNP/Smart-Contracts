@@ -77,31 +77,9 @@ contract FactoryTest is Test {
             stateView
         );
 
-        factory.createFundraisingVault(
-            "FundraisingToken",
-            "FTN",
-            usdc,
-            nonProfitOrg,
-            taxFee,
-            maximumThreshold,
-            minimumHealthThreshhold,
-            transferInterval,
-            minLPHealthThreshhold,
-            tickSpacing
-        );
+        factory.createFundraisingVault("FundraisingToken", "FTN", usdc, nonProfitOrg);
 
-        factory.createFundraisingVault(
-            "FundraisingToken",
-            "FTN",
-            address(0),
-            nonProfitOrg2,
-            taxFee,
-            maximumThreshold,
-            minimumHealthThreshhold,
-            transferInterval,
-            minLPHealthThreshhold,
-            tickSpacing
-        );
+        factory.createFundraisingVault("FundraisingToken", "FTN", address(0), nonProfitOrg2);
 
         (fundraisingTokenAddress,, treasuryWalletAddress, donationWalletAddress,,,) = factory.protocols(nonProfitOrg);
         vm.stopPrank();
@@ -335,89 +313,27 @@ contract FactoryTest is Test {
     function testCreateFundraisingVaultRevertsIfNotOwner() public {
         vm.prank(address(0x10));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
-        factory.createFundraisingVault(
-            "TokenName",
-            "TKN",
-            usdc,
-            nonProfitOrg,
-            taxFee,
-            maximumThreshold,
-            minimumHealthThreshhold,
-            transferInterval,
-            minLPHealthThreshhold,
-            tickSpacing
-        );
+        factory.createFundraisingVault("TokenName", "TKN", usdc, nonProfitOrg);
         vm.stopPrank();
     }
 
     function testCreateFundraisingVaultRevertsOnZeroOwnerAddress() public {
         vm.prank(owner);
         vm.expectRevert(Factory.ZeroAddress.selector);
-        factory.createFundraisingVault(
-            "TokenName",
-            "TKN",
-            usdc,
-            address(0),
-            taxFee,
-            maximumThreshold,
-            minimumHealthThreshhold,
-            transferInterval,
-            minLPHealthThreshhold,
-            tickSpacing
-        );
-        vm.stopPrank();
-    }
-
-    function testCreateFundraisingVaultRevertsIfMinLPHealthIsLessThanFivePercent() public {
-        vm.prank(owner);
-        vm.expectRevert(Factory.InvlidLPHealthThreshold.selector);
-        factory.createFundraisingVault(
-            "TokenName",
-            "TKN",
-            usdc,
-            nonProfitOrg,
-            taxFee,
-            maximumThreshold,
-            minimumHealthThreshhold,
-            transferInterval,
-            45e15, //4.5%
-            tickSpacing
-        );
+        factory.createFundraisingVault("TokenName", "TKN", usdc, address(0));
         vm.stopPrank();
     }
 
     function testCreateFundraisingVaultRevertsIfVaultAlreadyExists() public {
         vm.prank(owner);
         vm.expectRevert(Factory.VaultAlreadyExists.selector);
-        factory.createFundraisingVault(
-            "TokenName",
-            "TKN",
-            usdc,
-            nonProfitOrg,
-            taxFee,
-            maximumThreshold,
-            minimumHealthThreshhold,
-            transferInterval,
-            minLPHealthThreshhold,
-            tickSpacing
-        );
+        factory.createFundraisingVault("TokenName", "TKN", usdc, nonProfitOrg);
         vm.stopPrank();
     }
 
     function testCreateFundraisingVaultAndEmitFundraisingVaultCreatedEvent() public {
         vm.prank(owner);
-        factory.createFundraisingVault(
-            "TokenName",
-            "TKN",
-            usdc,
-            address(30),
-            taxFee,
-            maximumThreshold,
-            minimumHealthThreshhold,
-            transferInterval,
-            minLPHealthThreshhold,
-            tickSpacing
-        );
+        factory.createFundraisingVault("TokenName", "TKN", usdc, address(30));
         (address fundraisingToken,, address treasuryWallet, address donationWallet,,,) = factory.protocols(address(30));
         assert(fundraisingToken != address(0));
         assert(donationWallet != address(0));
@@ -506,18 +422,7 @@ contract FactoryTest is Test {
     function testCreatePoolSwapsCurrienciesIfCurrency0IsGreaterThanCurrency1() public {
         vm.startPrank(owner);
         address nonProfitOrg3 = address(0x100);
-        factory.createFundraisingVault(
-            "FundraisingToken",
-            "FTN",
-            usdc,
-            nonProfitOrg3,
-            taxFee,
-            maximumThreshold,
-            minimumHealthThreshhold,
-            transferInterval,
-            minLPHealthThreshhold,
-            tickSpacing
-        );
+        factory.createFundraisingVault("FundraisingToken", "FTN", usdc, nonProfitOrg3);
 
         (address _fundraisingTokenAddress,,,,,,) = factory.protocols(nonProfitOrg3);
 
@@ -639,23 +544,5 @@ contract FactoryTest is Test {
 
         emit Factory.TreasuryEmergencyPauseSet(nonProfitOrg, treasuryWalletAddress, true);
         factory.setTreasuryEmergencyPause(nonProfitOrg, true);
-    }
-
-    function testSetDonationEmergencyPauseRevertsIfNonProfitOrgAddressIsZeroAddress() public {
-        vm.expectRevert(Factory.ZeroAddress.selector);
-        factory.setDonationEmergencyPause(address(0), true);
-    }
-
-    function testSetDonationEmergencyPauseRevertsIfNotCalledByNonProfitOrg() public {
-        vm.expectRevert(Factory.OnlyCalledByNonProfitOrg.selector);
-        factory.setDonationEmergencyPause(nonProfitOrg, true);
-    }
-
-    function testSetDonationEmergencyPauseEmitsDonationEmergencyPauseSetEvent() public {
-        vm.startPrank(nonProfitOrg);
-        vm.expectEmit(true, true, false, false);
-
-        emit Factory.DonationEmergencyPauseSet(nonProfitOrg, donationWalletAddress, true);
-        factory.setDonationEmergencyPause(nonProfitOrg, true);
     }
 }

@@ -111,6 +111,7 @@ contract Factory is Ownable2StepUpgradeable {
     event DonationEmergencyPauseSet(address owner, address donationWallet, bool pause);
 
     event EmergencyPauseSet(bool pause);
+    event EmergencyWithdrawn(address treasuryWallet, address owner, uint256 amount);
 
     /**
      * @notice Ensures that the provided address is not the zero address.
@@ -202,17 +203,8 @@ contract Factory is Ownable2StepUpgradeable {
         string calldata _tokenName,
         string calldata _tokenSymbol,
         address _underlyingAddress,
-        address _owner,
-        uint256 _taxFee,
-        uint256 _maximumThreshold,
-        uint256 _minimumHealthThreshhold,
-        uint256 _transferInterval,
-        uint256 _minLPHealthThreshhold,
-        int24 _tickSpacing
+        address _owner
     ) external nonZeroAddress(_owner) onlyOwner {
-        // Liquidity min Health threshold should be greater than or equal to 5e16
-        if (_minLPHealthThreshhold < 5e16) revert InvlidLPHealthThreshold();
-
         if (protocols[_owner].fundraisingToken != address(0)) {
             revert VaultAlreadyExists();
         }
@@ -237,9 +229,7 @@ contract Factory is Ownable2StepUpgradeable {
             address(treasuryWallet),
             address(donationWallet),
             address(this),
-            totalSupply * 10 ** _decimals,
-            _taxFee,
-            _maximumThreshold
+            totalSupply * 10 ** _decimals
         );
 
         donationWallet.initialize(
@@ -263,10 +253,7 @@ contract Factory is Ownable2StepUpgradeable {
             permit2,
             positionManager,
             quoter,
-            _minimumHealthThreshhold,
-            _transferInterval,
-            _minLPHealthThreshhold,
-            _tickSpacing,
+            defaultTickSpacing,
             address(fundraisingToken),
             stateView
         );
@@ -387,24 +374,6 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Sets the emergency pause state for a donation wallet.
-     * @param _nonProfitOrgOwner The address of the non-profit organization owner whose donation wallet will be paused or unpaused.
-     * @param _pause Boolean indicating whether to pause (true) or unpause (false) donations.
-     * @dev Only callable by the owner.
-     */
-    function setDonationEmergencyPause(address _nonProfitOrgOwner, bool _pause)
-        external
-        nonZeroAddress(_nonProfitOrgOwner)
-    {
-        FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
-        // only called by non profit org
-        if (msg.sender != protocol.owner) revert OnlyCalledByNonProfitOrg();
-        DonationWallet donation = DonationWallet(payable(protocol.donationWallet));
-        donation.emergencyPause(_pause);
-        emit DonationEmergencyPauseSet(_nonProfitOrgOwner, address(donation), _pause);
-    }
-
-    /**
      * @notice Enable or disable emergency pause across all treasury and donations wallet
      * @param _pause true if to enable emergency pause across all treasury and donations wallet or false
      * @dev Only called by the admin
@@ -414,6 +383,17 @@ contract Factory is Ownable2StepUpgradeable {
         pauseAll = _pause;
 
         emit EmergencyPauseSet(_pause);
+    }
+
+    function emergencyWithdraw(address _nonProfitOrgOwner) external {
+        FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
+        // only called by non profit org
+        if (msg.sender != protocol.owner) revert OnlyCalledByNonProfitOrg();
+
+        TreasuryWallet treasury = TreasuryWallet(payable(protocol.treasuryWallet));
+        uint256 withdrawnAmount = treasury.emergencyWithdraw(_nonProfitOrgOwner);
+
+        emit EmergencyWithdrawn(address(treasury), _nonProfitOrgOwner, withdrawnAmount);
     }
 
     /**
