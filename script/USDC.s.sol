@@ -6,6 +6,8 @@ import {USDC} from "../src/mock/USDC.sol";
 import {Config} from "forge-std/Config.sol";
 
 contract USDCScript is Script, Config {
+    function test() public {}
+    
     function run() public {
         _loadConfig("./deployments.toml", true);
 
@@ -13,7 +15,7 @@ contract USDCScript is Script, Config {
         console.log("Deploying to chain:", chainId);
 
         vm.startBroadcast();
-        address usdc = address(new USDC());
+        address usdc = address(new USDC(6));
         console.log("USDC deployed at:", usdc);
         config.set("usdc", usdc);
         vm.stopBroadcast();

@@ -6,22 +6,66 @@ import {Test, console} from "forge-std/Test.sol";
 import {FundRaisingToken} from "../src/FundRaisingToken.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TreasuryWallet} from "../src/TreasuryWallet.sol";
+import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import {DonationWallet} from "../src/DonationWallet.sol";
+import {Factory} from "../src/Factory.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {USDC} from "../src/mock/USDC.sol";
 
 contract FundRaisingTokenTest is Test {
     FundRaisingToken public fundRaisingToken;
 
     address public constant lpManager = address(0x1);
-    address public constant treasuryAddress = address(0x2);
-    address public constant donationAddress = address(0x3);
-    address public constant factoryAddress = address(0x4);
+    address public treasuryAddress;
+    address public donationAddress;
+    address public factoryAddress;
     uint256 public constant totalSupply = 1e27; // 1 billion tokens with 18 decimals
     uint256 public constant taxFee = 2e16; // 2%
     uint256 public constant maximumThreshold = 30e16; // 30%
+    address public constant registryAddress = address(0x1);
+    address public constant poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+    address public constant positionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
+    address public constant router = 0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af;
+    address public constant permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address public constant nonProfitOrg = address(0x7);
+    address public fundraisingTokenAddress;
+    address public usdc;
+    address public constant USDC_WHALE = 0x55FE002aefF02F77364de339a1292923A15844B8;
+    address public constant quoter = 0x52F0E24D1c21C8A0cB1e5a5dD6198556BD9E1203;
+    address public constant stateView = 0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227;
+    address public constant nonProfitOrg2 = address(0x8);
 
     function setUp() public {
-        fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken", "FRT", 6, lpManager, treasuryAddress, donationAddress, factoryAddress, totalSupply
+        usdc = address(new USDC(18));
+        vm.startPrank(lpManager);
+        address treasuryImplementation = address(new TreasuryWallet());
+        address treasuryWalletBeacon = address(new UpgradeableBeacon(treasuryImplementation, msg.sender));
+        // deploy donation wallet beacon
+        address donationWalletImplementation = address(new DonationWallet());
+        address donationWalletBeacon = address(new UpgradeableBeacon(donationWalletImplementation, msg.sender));
+
+        address factoryImplementation = address(new Factory());
+        Factory factory =
+            Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
+        factory.initialize(
+            registryAddress,
+            poolManager,
+            positionManager,
+            router,
+            permit2,
+            quoter,
+            address(0x20),
+            treasuryWalletBeacon,
+            donationWalletBeacon,
+            stateView
         );
+        factoryAddress = address(factory);
+        factory.createFundraisingVault("FundraisingToken", "FTN", usdc, nonProfitOrg);
+
+        (fundraisingTokenAddress,, treasuryAddress, donationAddress,,,) = factory.protocols(nonProfitOrg);
+        fundRaisingToken = FundRaisingToken(fundraisingTokenAddress);
+        vm.stopPrank();
     }
 
     function testConstructorRevertsOnZeroLPManagerAddress() public {
@@ -86,7 +130,7 @@ contract FundRaisingTokenTest is Test {
     }
 
     function testDecimalsReturnsTheDecimalOfTheToken() public view {
-        assertEq(fundRaisingToken.decimals(), 6);
+        assertEq(fundRaisingToken.decimals(), 18);
     }
 
     function testBurnRevertsOnZeroAmount() public {
@@ -117,8 +161,8 @@ contract FundRaisingTokenTest is Test {
         uint256 initialTotalSupply = fundRaisingToken.totalSupply();
         uint256 initialTreasuryBalance = fundRaisingToken.balanceOf(treasuryAddress);
         uint256 burnAmount = 1e18;
-
-        vm.prank(treasuryAddress);
+        console.log(treasuryAddress, "treas");
+        vm.startPrank(treasuryAddress);
         fundRaisingToken.burn(burnAmount);
 
         assertEq(fundRaisingToken.totalSupply(), initialTotalSupply - burnAmount);
