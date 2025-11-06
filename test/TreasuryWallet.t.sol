@@ -352,6 +352,25 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         vm.stopPrank();
     }
 
+    function testPerformUpkeepOnlyCalledByRegistryAddress() public {
+        vm.startPrank(address(20));
+        bytes memory _performData = abi.encode(true, false);
+        vm.expectRevert(TreasuryWallet.OnlyRegistry.selector);
+        treasuryWallet.performUpkeep(_performData);
+    }
+
+    function testPerformUpkeepCannotInitiateTransferIfInitiateTransferIsFalseAndCannotInitiateAddLiquidityIfInitiateAddLiquidityIsFalse()
+        public
+    {
+        vm.startPrank(REGISTRY);
+        bytes memory _performData = abi.encode(false, false);
+        uint256 balanceBeforePerformUpKeep = IERC20Metadata(fundRaisingToken).balanceOf(address(treasuryWallet));
+        treasuryWallet.performUpkeep(_performData);
+        uint256 balanceAfterPerformUpKeep = IERC20Metadata(fundRaisingToken).balanceOf(address(treasuryWallet));
+
+        assertEq(balanceAfterPerformUpKeep, balanceBeforePerformUpKeep);
+    }
+
     function testPerformUpKeepTransferFundsToDonationWalletIfInitiateTransferIsTrue() public {
         vm.startPrank(REGISTRY);
         bytes memory _performData = abi.encode(true, false);
@@ -450,5 +469,73 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
         bytes memory performData = abi.encode(false, false);
         treasuryInstance.performUpkeep(performData);
+    }
+
+    function testEmergencyPauseOnlyCalledByFactory() public {
+        vm.startPrank(DONATION);
+        vm.expectRevert(TreasuryWallet.OnlyFactory.selector);
+        treasuryWallet.emergencyPause(true);
+        vm.stopPrank();
+    }
+
+    function testEmergencyPauseCanPauseTreasuryFunctionalities() public {
+        vm.startPrank(factoryProxy);
+        treasuryWallet.emergencyPause(true);
+        assertEq(treasuryWallet.isTreasuryPaused(), true);
+        vm.stopPrank();
+    }
+
+    function testEmergencyPauseCannotSetSamePauseStatusTwice() public {
+        vm.startPrank(factoryProxy);
+        treasuryWallet.emergencyPause(true);
+        assertEq(treasuryWallet.isTreasuryPaused(), true);
+        vm.expectRevert(TreasuryWallet.EmergencyPauseAlreadySet.selector);
+        treasuryWallet.emergencyPause(true);
+        vm.stopPrank();
+    }
+
+    function testEmergencyPauseCanResumeFunctionalities() public {
+        vm.startPrank(factoryProxy);
+        treasuryWallet.emergencyPause(true);
+        assertEq(treasuryWallet.isTreasuryPaused(), true);
+        treasuryWallet.emergencyPause(false);
+        assertEq(treasuryWallet.isTreasuryPaused(), false);
+        vm.stopPrank();
+    }
+
+    function testEmergencyWithdrawOnlyCalledByFactory() public {
+        vm.startPrank(DONATION);
+        vm.expectRevert(TreasuryWallet.OnlyFactory.selector);
+        treasuryWallet.emergencyWithdraw(address(20));
+        vm.stopPrank();
+    }
+
+    function testEmergencyWithdrawCannotWithdrawIfTreasuryNotPaused() public {
+        vm.startPrank(factoryProxy);
+        vm.expectRevert(TreasuryWallet.TreasuryNotPaused.selector);
+        treasuryWallet.emergencyWithdraw(address(20));
+    }
+
+    function testEmergencyWithdrawCannotWithdrawIfTreasuryBalanceIsZero() public {
+        vm.startPrank(address(treasuryWallet));
+        uint256 availableBalance = IERC20Metadata(fundRaisingToken).balanceOf(address(treasuryWallet));
+
+        IERC20Metadata(fundRaisingToken).transfer(address(20), availableBalance);
+        vm.stopPrank();
+
+        vm.startPrank(factoryProxy);
+        treasuryWallet.emergencyPause(true);
+        vm.expectRevert(TreasuryWallet.NoFundsAvailableForEmergencyWithdraw.selector);
+        treasuryWallet.emergencyWithdraw(address(20));
+    }
+
+    function testEmergencyWithdrawCanTransferFundsToNonProfitAddress() public {
+        vm.startPrank(factoryProxy);
+        treasuryWallet.emergencyPause(true);
+        uint256 availableBalance = IERC20Metadata(fundRaisingToken).balanceOf(address(treasuryWallet));
+        uint256 withdrawnBalance = treasuryWallet.emergencyWithdraw(address(20));
+
+        assertEq(availableBalance, withdrawnBalance);
+        assertEq(IERC20Metadata(fundRaisingToken).balanceOf(address(20)), withdrawnBalance);
     }
 }

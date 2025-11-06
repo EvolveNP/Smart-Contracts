@@ -105,7 +105,7 @@ contract FundRaisingToken is ERC20 {
             super._update(from, to, amount);
             return;
         }
-        console.log(factoryAddress, donationAddress, treasuryAddress);
+
         // Exempt system addresses
         if (
             from == factoryAddress || to == factoryAddress || from == donationAddress || to == donationAddress
