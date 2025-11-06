@@ -8,7 +8,7 @@ import {Config} from "forge-std/Config.sol";
 
 contract FactoryScript is Script, Config {
     function test() public {}
-    
+
     function setUp() public {}
 
     function run() public {

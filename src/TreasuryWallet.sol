@@ -143,6 +143,30 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     }
 
     /**
+     * @notice Enables or disables emergency pause
+     * @param _pause set true to enable emergency pause otherwise set false
+     * @dev Only factory can set emergency pause
+     */
+    function emergencyPause(bool _pause) external onlyFactory {
+        if (paused == _pause) revert EmergencyPauseAlreadySet();
+        paused = _pause;
+    }
+
+    function emergencyWithdraw(address _to) external onlyFactory returns (uint256) {
+        uint256 availableAmount = fundraisingToken.balanceOf(address(this));
+        if (!isTreasuryPaused()) revert TreasuryNotPaused();
+        if (availableAmount == 0) revert NoFundsAvailableForEmergencyWithdraw();
+
+        fundraisingToken.transfer(_to, availableAmount);
+
+        return availableAmount;
+    }
+
+    function isTreasuryPaused() public view returns (bool) {
+        return paused || IFactory(factoryAddress).pauseAll();
+    }
+
+    /**
      * @notice Adjusts the health of the liquidity pool by swapping half of the fundraising token surplus for the underlying currency,
      *         adds liquidity to the pool, and sends any leftover tokens or ETH to the donation wallet.
      * @dev Calculates the amount to add to the LP based on the fundraising token supply and minimum threshold.
@@ -297,29 +321,5 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         }
 
         _positionManager.modifyLiquidities{value: valueToPass}(abi.encode(actions, params), deadline);
-    }
-
-    /**
-     * @notice Enables or disables emergency pause
-     * @param _pause set true to enable emergency pause otherwise set false
-     * @dev Only factory can set emergency pause
-     */
-    function emergencyPause(bool _pause) external onlyFactory {
-        if (paused == _pause) revert EmergencyPauseAlreadySet();
-        paused = _pause;
-    }
-
-    function emergencyWithdraw(address _to) external onlyFactory returns (uint256) {
-        uint256 availableAmount = fundraisingToken.balanceOf(address(this));
-        if (!isTreasuryPaused()) revert TreasuryNotPaused();
-        if (availableAmount == 0) revert NoFundsAvailableForEmergencyWithdraw();
-
-        fundraisingToken.transfer(_to, availableAmount);
-
-        return availableAmount;
-    }
-
-    function isTreasuryPaused() public view returns (bool) {
-        return paused || IFactory(factoryAddress).pauseAll();
     }
 }

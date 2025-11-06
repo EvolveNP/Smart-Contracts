@@ -17,7 +17,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
 abstract contract BuyFundraisingTokens {
     function test() public {}
-    
+
     function buyFundraisingToken(
         PoolKey memory key,
         uint128 amountIn,

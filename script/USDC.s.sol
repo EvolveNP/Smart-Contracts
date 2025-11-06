@@ -7,7 +7,7 @@ import {Config} from "forge-std/Config.sol";
 
 contract USDCScript is Script, Config {
     function test() public {}
-    
+
     function run() public {
         _loadConfig("./deployments.toml", true);
 
