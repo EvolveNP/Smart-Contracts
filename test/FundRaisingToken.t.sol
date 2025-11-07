@@ -248,6 +248,26 @@ contract FundRaisingTokenTest is Test {
         assertEq(fundRaisingToken.balanceOf(treasuryAddress), 35e25);
     }
 
+    function testTransferCannotCutTaxIfTreasuryPaused() public {
+        vm.startPrank(factoryAddress);
+        TreasuryWallet(payable(treasuryAddress)).emergencyPause(true);
+        assertEq(TreasuryWallet(payable(treasuryAddress)).isTreasuryPaused(), true);
+        vm.startPrank(lpManager);
+        fundRaisingToken.transfer(treasuryAddress, 10e25);
+        assertEq(fundRaisingToken.balanceOf(treasuryAddress), 35e25);
+        
+   
+        fundRaisingToken.transfer(address(0x10), 1e18);
+        assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
+        vm.stopPrank();
+        vm.prank(address(0x10));
+        fundRaisingToken.transfer(address(0x20), 1e18);
+
+        assertEq(fundRaisingToken.balanceOf(address(0x20)), 1e18);
+
+        assertEq(fundRaisingToken.balanceOf(treasuryAddress), 35e25);
+    }
+
     function testTransferCutsTaxIfNotFromOrToSystemAddresses() public {
         vm.prank(lpManager);
         fundRaisingToken.transfer(factoryAddress, 1e18);
