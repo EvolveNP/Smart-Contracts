@@ -437,10 +437,13 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     function deployHook(address _fundraisingToken, address _treasuryAddress) internal returns (IHooks hook) {
-        uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG);
+        uint160 flags = uint160(
+            Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
+                | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        );
 
         // Mine a salt that will produce a hook address with the correct flags
-        bytes memory constructorArgs = abi.encode(poolManager, _fundraisingToken);
+        bytes memory constructorArgs = abi.encode(poolManager, _fundraisingToken, _treasuryAddress);
         (, bytes32 salt) =
             HookMiner.find(address(this), flags, type(FundraisingTokenHook).creationCode, constructorArgs);
 

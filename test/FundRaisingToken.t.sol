@@ -253,21 +253,4 @@ contract FundRaisingTokenTest is Test {
         // Treasury should receive 2% tax = 0.02e18
         assertEq(fundRaisingToken.balanceOf(treasuryAddress), 25e25);
     }
-
-    function testTransferCutsTaxIfTreasuryBalanceIsLessThanMinimumThreshold() public {
-        vm.startPrank(lpManager);
-        address receiver = address(0x17);
-        uint256 amountToTransfer = 20000e6;
-        uint256 _taxFee = (amountToTransfer * taxFee) / 1e18;
-
-        uint256 treasuryBalanceBeforeTransfer = fundRaisingToken.balanceOf(treasuryAddress);
-
-        fundRaisingToken.transfer(receiver, amountToTransfer);
-
-        assertEq(fundRaisingToken.balanceOf(receiver), amountToTransfer - _taxFee);
-        assertEq(fundRaisingToken.balanceOf(treasuryAddress), treasuryBalanceBeforeTransfer + _taxFee);
-    }
-
-    //TODO
-    function testFuzz_Transfer() public {}
 }

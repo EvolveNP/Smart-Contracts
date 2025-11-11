@@ -444,7 +444,7 @@ contract FactoryTest is Test {
         factory.createPool(nonProfitOrg3, amount0, amount1);
         assertApproxEqAbs(IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager), amount1, tolerance);
         assertEq(IERC20Metadata(usdc).balanceOf(address(factory)), 0);
-        PoolKey memory key = factory.getPoolKey(nonProfitOrg3);
+        // PoolKey memory key = factory.getPoolKey(nonProfitOrg3);
         // assertEq(Currency.unwrap(key.currency0), _fundraisingTokenAddress);
         //  assertEq(Currency.unwrap(key.currency1), usdc);
         vm.stopPrank();

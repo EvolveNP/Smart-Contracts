@@ -63,8 +63,8 @@ contract FundraisingTokenHook is BaseHook {
             afterSwap: true,
             beforeDonate: false,
             afterDonate: false,
-            beforeSwapReturnDelta: false,
-            afterSwapReturnDelta: false,
+            beforeSwapReturnDelta: true,
+            afterSwapReturnDelta: true,
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
         });
@@ -99,7 +99,6 @@ contract FundraisingTokenHook is BaseHook {
             int128(int256(feeAmount)), // Specified delta (fee amount)
             0 // Unspecified delta (no change)
         );
-
         return (BaseHook.beforeSwap.selector, returnDelta, 0);
     }
 
@@ -137,11 +136,10 @@ contract FundraisingTokenHook is BaseHook {
 
             feeAmount = (uint256(_amountOut) * TAX_FEE_PERCENTAGE) / TAX_FEE_DENOMINATOR;
 
-            require(feeAmount <= ((uint256(1) << 127) - 1), "fee too large");
+            if(feeAmount >= ((uint256(1) << 127) - 1)) revert FeeToLarge();
             // sends the fee to treasury wallet
             poolManager.take(Currency.wrap(fundraisingTokenAddress), treasuryAddress, feeAmount);
         }
-
         return (BaseHook.afterSwap.selector, int128(int256(feeAmount)));
     }
 

@@ -86,7 +86,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     /**
      * See {AutomationCompatibleInterace - checkUpKeep}
      */
-    function checkUpkeep(bytes calldata checkData) external view returns (bool upkeepNeeded, bytes memory performData) {
+    function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = IERC20(fundraisingTokenAddress).balanceOf(address(this)) > 0;
 
         performData = bytes("");
@@ -95,7 +95,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     /**
      * See {AutomationCompatibleInterace - performUpkeep}
      */
-    function performUpkeep(bytes calldata performData) external onlyRegistry {
+    function performUpkeep(bytes calldata) external onlyRegistry {
         swapFundraisingToken();
     }
 

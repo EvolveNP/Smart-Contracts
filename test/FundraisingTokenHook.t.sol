@@ -197,7 +197,6 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         IERC20(usdc).approve(address(permit2), type(uint256).max);
         permit2.approve(usdc, address(router), amountIn, uint48(deadline));
-        console.log(address(this), "addr");
         vm.expectRevert(
             abi.encodeWithSelector(
                 CustomRevert.WrappedError.selector,
