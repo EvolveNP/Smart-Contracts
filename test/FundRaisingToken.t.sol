@@ -255,8 +255,7 @@ contract FundRaisingTokenTest is Test {
         vm.startPrank(lpManager);
         fundRaisingToken.transfer(treasuryAddress, 10e25);
         assertEq(fundRaisingToken.balanceOf(treasuryAddress), 35e25);
-        
-   
+
         fundRaisingToken.transfer(address(0x10), 1e18);
         assertEq(fundRaisingToken.balanceOf(address(0x10)), 1e18);
         vm.stopPrank();
