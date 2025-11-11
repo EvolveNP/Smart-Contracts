@@ -67,6 +67,52 @@ abstract contract BuyFundraisingTokens {
         router.execute{value: amountIn}(commands, inputs, deadline);
     }
 
+    function sellFundraisingToken(
+        PoolKey memory key,
+        uint128 amountIn,
+        uint128 minAmountOut,
+        IPermit2 permit2,
+        UniversalRouter router,
+        address fundraisingTokenAddress
+    ) internal {
+        // Encode the Universal Router command
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        bytes[] memory inputs = new bytes[](1);
+
+        // Encode V4Router actions
+        bytes memory actions =
+            abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
+
+        // Prepare parameters for each action
+        bool _isCurrency0FundraisingToken = fundraisingTokenAddress == Currency.unwrap(key.currency0);
+        bytes[] memory params = new bytes[](3);
+        params[0] = abi.encode(
+            IV4Router.ExactInputSingleParams({
+                poolKey: key,
+                zeroForOne: _isCurrency0FundraisingToken,
+                amountIn: amountIn,
+                amountOutMinimum: minAmountOut,
+                hookData: bytes("")
+            })
+        );
+
+        Currency currencyIn = _isCurrency0FundraisingToken ? key.currency0 : key.currency1;
+        Currency currencyOut = _isCurrency0FundraisingToken ? key.currency1 : key.currency0;
+
+        params[1] = abi.encode(currencyIn, amountIn);
+        params[2] = abi.encode(currencyOut, minAmountOut);
+
+        // Combine actions and params into inputs
+        inputs[0] = abi.encode(actions, params);
+
+        uint256 deadline = block.timestamp + 40;
+
+        IERC20(fundraisingTokenAddress).approve(address(permit2), type(uint256).max);
+        permit2.approve(fundraisingTokenAddress, address(router), amountIn, uint48(deadline));
+
+        router.execute{value: amountIn}(commands, inputs, deadline);
+    }
+
     function _getMinAmountOut(
         PoolKey memory _key,
         uint128 _exactAmount,

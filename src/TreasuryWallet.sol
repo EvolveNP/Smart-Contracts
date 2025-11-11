@@ -114,9 +114,10 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      */
     function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData) {
         uint256 transferDate = lastTransferTimestamp + transferInterval;
-        uint256 lpCurrentThreshold = getCurrentLPHealthThreshold();
+        uint256 lpCurrentThreshold = getThreshold(address(poolManager));
         bool initiateTransfer = ((block.timestamp >= transferDate) && isTransferAllowed());
-        bool initiateAddLiqudity = (minLPHealthThreshhold >= lpCurrentThreshold);
+        bool initiateAddLiqudity = (minLPHealthThreshhold >= lpCurrentThreshold)
+            && (getThreshold(address(this)) > minimumHealthThreshholdToAddLP);
         bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
         upkeepNeeded = !emergencyPauseEnabled && (initiateTransfer || initiateAddLiqudity);
 
@@ -245,10 +246,10 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      * @dev Uses the IFactory interface to get the fundraising token balance and accesses the total supply from the fundraisingToken contract.
      * @return The current LP health threshold as a uint256 value.
      */
-    function getCurrentLPHealthThreshold() internal view returns (uint256) {
-        uint256 lpBalance = fundraisingToken.balanceOf(address(poolManager));
+    function getThreshold(address account) internal view returns (uint256) {
+        uint256 balance = fundraisingToken.balanceOf(address(account));
         uint256 totalSupply = fundraisingToken.totalSupply();
-        return (lpBalance * MULTIPLIER) / totalSupply;
+        return (balance * MULTIPLIER) / totalSupply;
     }
 
     /**

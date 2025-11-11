@@ -28,6 +28,7 @@ contract FundraisingTokenHook is BaseHook {
 
     address public immutable fundraisingTokenAddress; // The address of the fundraising token
     address public immutable treasuryAddress;
+    address public immutable donationAddress;
     uint256 public constant maximumThreshold = 30e16; // The maximum threshold for the liquidity pool 30% = 30e16
 
     mapping(address => uint256) public lastBuyTimestamp; // The last buy timestamp for each address
@@ -42,13 +43,17 @@ contract FundraisingTokenHook is BaseHook {
      * @param _fundraisingTokenAddress The address of the fundraising token.
      * @param _treasuryAddress The address where fees will be sent (immutable).
      */
-    constructor(address _poolManager, address _fundraisingTokenAddress, address _treasuryAddress)
-        BaseHook(IPoolManager(_poolManager))
-    {
+    constructor(
+        address _poolManager,
+        address _fundraisingTokenAddress,
+        address _treasuryAddress,
+        address _donationAddress
+    ) BaseHook(IPoolManager(_poolManager)) {
         fundraisingTokenAddress = _fundraisingTokenAddress;
         launchTimestamp = block.timestamp;
         launchBlock = block.number;
         treasuryAddress = _treasuryAddress;
+        donationAddress = _donationAddress;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
@@ -136,7 +141,7 @@ contract FundraisingTokenHook is BaseHook {
 
             feeAmount = (uint256(_amountOut) * TAX_FEE_PERCENTAGE) / TAX_FEE_DENOMINATOR;
 
-            if(feeAmount >= ((uint256(1) << 127) - 1)) revert FeeToLarge();
+            if (feeAmount >= ((uint256(1) << 127) - 1)) revert FeeToLarge();
             // sends the fee to treasury wallet
             poolManager.take(Currency.wrap(fundraisingTokenAddress), treasuryAddress, feeAmount);
         }
@@ -178,6 +183,6 @@ contract FundraisingTokenHook is BaseHook {
 
     function checkIfTaxIncurred(address sender) internal view returns (bool) {
         return !ITreasury(treasuryAddress).isTreasuryPaused() && (getTreasuryBalanceInPerecent() < maximumThreshold)
-            && sender != ITreasury(treasuryAddress).registryAddress();
+            && sender != treasuryAddress && sender != donationAddress;
     }
 }
