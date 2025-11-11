@@ -322,7 +322,7 @@ contract Factory is Ownable2StepUpgradeable {
         Currency currency1 = Currency.wrap(_currency1);
 
         // deploy hook
-        IHooks hook = deployHook(_protocol.fundraisingToken);
+        IHooks hook = deployHook(_protocol.fundraisingToken, _protocol.treasuryWallet);
 
         // transfer assets to this contract;
 
@@ -443,15 +443,15 @@ contract Factory is Ownable2StepUpgradeable {
             abi.encodeWithSelector(IPositionManager.modifyLiquidities.selector, abi.encode(actions, params), deadline);
     }
 
-    function deployHook(address _fundraisingToken) internal returns (IHooks hook) {
-        uint160 flags = uint160(Hooks.AFTER_SWAP_FLAG);
+    function deployHook(address _fundraisingToken, address _treasuryAddress) internal returns (IHooks hook) {
+        uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG);
 
         // Mine a salt that will produce a hook address with the correct flags
         bytes memory constructorArgs = abi.encode(poolManager, _fundraisingToken);
         (, bytes32 salt) =
             HookMiner.find(address(this), flags, type(FundraisingTokenHook).creationCode, constructorArgs);
 
-        hook = new FundraisingTokenHook{salt: salt}(poolManager, _fundraisingToken);
+        hook = new FundraisingTokenHook{salt: salt}(poolManager, _fundraisingToken, _treasuryAddress);
     }
 
     /**

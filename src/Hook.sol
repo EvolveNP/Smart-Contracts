@@ -10,6 +10,7 @@ import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {BeforeSwapDelta, toBeforeSwapDelta} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
+import {ITreasury} from "./interfaces/ITreasury.sol";
 
 contract FundraisingTokenHook is BaseHook {
     error TransactionNotAllowed();
@@ -27,6 +28,7 @@ contract FundraisingTokenHook is BaseHook {
 
     address public immutable fundraisingTokenAddress; // The address of the fundraising token
     address public immutable treasuryAddress;
+    uint256 public constant maximumThreshold = 30e16; // The maximum threshold for the liquidity pool 30% = 30e16
 
     mapping(address => uint256) public lastBuyTimestamp; // The last buy timestamp for each address
 
@@ -40,11 +42,9 @@ contract FundraisingTokenHook is BaseHook {
      * @param _fundraisingTokenAddress The address of the fundraising token.
      * @param _treasuryAddress The address where fees will be sent (immutable).
      */
-    constructor(
-        address _poolManager,
-        address _fundraisingTokenAddress,
-        address _treasuryAddress
-    ) BaseHook(IPoolManager(_poolManager)) {
+    constructor(address _poolManager, address _fundraisingTokenAddress, address _treasuryAddress)
+        BaseHook(IPoolManager(_poolManager))
+    {
         fundraisingTokenAddress = _fundraisingTokenAddress;
         launchTimestamp = block.timestamp;
         launchBlock = block.number;
@@ -70,8 +70,7 @@ contract FundraisingTokenHook is BaseHook {
         });
     }
 
-
-    function _beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
+    function _beforeSwap(address sender, PoolKey calldata key, SwapParams calldata params, bytes calldata)
         internal
         virtual
         override
@@ -83,14 +82,15 @@ contract FundraisingTokenHook is BaseHook {
             (isFundraisingTokenCurrency0 && params.zeroForOne) || (!isFundraisingTokenCurrency0 && !params.zeroForOne);
 
         uint256 feeAmount;
-        if (isSelling) {
+        bool isTaxCutEnabled = checkIfTaxIncurred(sender);
+        if (isSelling && isTaxCutEnabled) {
             uint256 swapAmount =
                 params.amountSpecified < 0 ? uint256(-params.amountSpecified) : uint256(params.amountSpecified);
             // Correct denominator usage
             feeAmount = (swapAmount * TAX_FEE_PERCENTAGE) / TAX_FEE_DENOMINATOR;
 
             // Ensure fits in signed int128 before casting in any downstream use
-            if(feeAmount >= ((uint256(1) << 127) - 1)) revert FeeToLarge();
+            if (feeAmount >= ((uint256(1) << 127) - 1)) revert FeeToLarge();
 
             poolManager.take(Currency.wrap(fundraisingTokenAddress), treasuryAddress, feeAmount);
         }
@@ -122,7 +122,8 @@ contract FundraisingTokenHook is BaseHook {
             || (!isFundraisingTokenIsCurrencyZero && params.zeroForOne);
 
         uint256 feeAmount;
-        if (isBuying) {
+        bool isTaxCutEnabled = checkIfTaxIncurred(sender);
+        if (isBuying && isTaxCutEnabled) {
             int256 _amountOut = params.zeroForOne ? delta.amount1() : delta.amount0();
 
             if (_amountOut <= 0) {
@@ -164,5 +165,21 @@ contract FundraisingTokenHook is BaseHook {
             // Block transfers if within cooldown
             if (lastBuy != 0 && block.timestamp < lastBuy + perWalletCoolDownPeriod) revert CoolDownPeriodNotPassed();
         }
+    }
+
+    /**
+     * @notice Returns the treasury balance as a percentage of the total supply
+     * @return Percentage of the total supply held by the treasury (in 1e18 format, e.g. 1e16 = 1%)
+     */
+    function getTreasuryBalanceInPerecent() internal view returns (uint256) {
+        uint256 treasuryBalance = IERC20(fundraisingTokenAddress).balanceOf(treasuryAddress);
+        uint256 totalSupply = IERC20(fundraisingTokenAddress).totalSupply();
+
+        return (treasuryBalance * 1e18) / totalSupply;
+    }
+
+    function checkIfTaxIncurred(address sender) internal view returns (bool) {
+        return !ITreasury(treasuryAddress).isTreasuryPaused() && (getTreasuryBalanceInPerecent() < maximumThreshold)
+            && sender != ITreasury(treasuryAddress).registryAddress();
     }
 }
