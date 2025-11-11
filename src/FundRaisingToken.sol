@@ -3,6 +3,7 @@ pragma solidity 0.8.26;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ITreasury} from "./interfaces/ITreasury.sol";
+import {console} from "forge-std/console.sol";
 
 contract FundRaisingToken is ERC20 {
     /**

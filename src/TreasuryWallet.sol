@@ -43,14 +43,13 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     uint256 public lastTransferTimestamp;
 
     uint256 constant minimumHealthThreshhold = 5e16; // The minimum threshold for transferring funds
-    uint256 constant minimumHealthThreshholdToAddLP = 15e15; // The minimum threshold to add liquidity to the pool
+    uint256 constant minimumHealthThreshholdToAddLP = 10e15; // The minimum threshold to adjust health of the liquidity pool
     uint256 public constant transferInterval = 30 days; // The interval at which funds transferred to donation wallet
     uint256 public constant minLPHealthThreshhold = 5e16; // The health threshold
     uint256 internal constant MULTIPLIER = 1e18;
     int24 internal tickSpacing;
     bool paused;
     address stateView; // The address of the uniswap state view contract
-    uint256 withdrawnAmountOnEmergency; // The amount withdrawn during emergency
     /**
      * Events
      */
@@ -141,6 +140,30 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         if (initiateAddLiquidity) {
             adjustLPHealth();
         }
+    }
+
+    /**
+     * @notice Enables or disables emergency pause
+     * @param _pause set true to enable emergency pause otherwise set false
+     * @dev Only factory can set emergency pause
+     */
+    function emergencyPause(bool _pause) external onlyFactory {
+        if (paused == _pause) revert EmergencyPauseAlreadySet();
+        paused = _pause;
+    }
+
+    function emergencyWithdraw(address _to) external onlyFactory returns (uint256) {
+        uint256 availableAmount = fundraisingToken.balanceOf(address(this));
+        if (!isTreasuryPaused()) revert TreasuryNotPaused();
+        if (availableAmount == 0) revert NoFundsAvailableForEmergencyWithdraw();
+
+        fundraisingToken.transfer(_to, availableAmount);
+
+        return availableAmount;
+    }
+
+    function isTreasuryPaused() public view returns (bool) {
+        return paused || IFactory(factoryAddress).pauseAll();
     }
 
     /**
@@ -298,31 +321,5 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         }
 
         _positionManager.modifyLiquidities{value: valueToPass}(abi.encode(actions, params), deadline);
-    }
-
-    /**
-     * @notice Enables or disables emergency pause
-     * @param _pause set true to enable emergency pause otherwise set false
-     * @dev Only factory can set emergency pause
-     */
-    function emergencyPause(bool _pause) external onlyFactory {
-        if (paused == _pause) revert EmergencyPauseAlreadySet();
-        paused = _pause;
-    }
-
-    function emergencyWithdraw(address _to) external onlyFactory returns (uint256) {
-        uint256 availableAmount = fundraisingToken.balanceOf(address(this));
-        if (!isTreasuryPaused()) revert TreasuryNotPaused();
-        if (availableAmount == 0) revert NoFundsAvailableForEmergencyWithdraw();
-
-        withdrawnAmountOnEmergency = availableAmount;
-
-        fundraisingToken.transfer(_to, availableAmount);
-
-        return availableAmount;
-    }
-
-    function isTreasuryPaused() public view returns (bool) {
-        return paused || IFactory(factoryAddress).pauseAll();
     }
 }

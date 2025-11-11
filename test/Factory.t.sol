@@ -530,19 +530,71 @@ contract FactoryTest is Test {
 
     function testSetTreasuryEmergencyPauseRevertsIfNonProfitOrgAddressIsZeroAddress() public {
         vm.expectRevert(Factory.ZeroAddress.selector);
-        factory.setTreasuryEmergencyPause(address(0), true);
+        factory.setTreasuryPaused(address(0), true);
     }
 
-    function testSetTreasuryEmergencyPauseRevertsIfNotCalledByNonProfitOrg() public {
+    function testsetTreasuryPausedRevertsIfNotCalledByNonProfitOrg() public {
         vm.expectRevert(Factory.OnlyCalledByNonProfitOrg.selector);
-        factory.setTreasuryEmergencyPause(nonProfitOrg, true);
+        factory.setTreasuryPaused(nonProfitOrg, true);
     }
 
-    function testSetTreasuryEmergencyPauseEmitsTreasuryEmergencyPauseSetEvent() public {
+    function testsetTreasuryPausedEmitsTreasuryEmergencyPauseSetEvent() public {
         vm.startPrank(nonProfitOrg);
         vm.expectEmit(true, true, false, false);
 
         emit Factory.TreasuryEmergencyPauseSet(nonProfitOrg, treasuryWalletAddress, true);
-        factory.setTreasuryEmergencyPause(nonProfitOrg, true);
+        factory.setTreasuryPaused(nonProfitOrg, true);
+    }
+
+    function testSetAllTreasuriesPausedRevertsIfNotCalledByAdmin() public {
+        vm.prank(address(0x10));
+        vm.expectRevert(Factory.NotAdmin.selector);
+        factory.setAllTreasuriesPaused(true);
+    }
+
+    function testSetAllTreasuriesPausedRevertsIfPauseAlreadySet() public {
+        vm.prank(admin);
+        factory.setAllTreasuriesPaused(true);
+
+        vm.prank(admin);
+        vm.expectRevert(Factory.EmergencyPauseAlreadySet.selector);
+        factory.setAllTreasuriesPaused(true);
+    }
+
+    function testSetAllTreasuriesPausedEmitsAllTreasuriesEmergencyPauseSetEvent() public {
+        vm.prank(admin);
+        vm.expectEmit(true, false, false, false);
+
+        emit Factory.AllTreasuriesPaused(true);
+        factory.setAllTreasuriesPaused(true);
+    }
+
+    function testEmergencyWithdrawRevertsIfCalledByNonTreasuryWallet() public {
+        vm.prank(address(0x10));
+        vm.expectRevert(Factory.OnlyCalledByNonProfitOrg.selector);
+        factory.emergencyWithdraw();
+    }
+
+    function testEmergencyWithdrawEmitsEmergencyWithdrawnEvent() public {
+        vm.startPrank(admin);
+        factory.setAllTreasuriesPaused(true);
+        vm.stopPrank();
+        vm.startPrank(nonProfitOrg);
+        uint256 treasuryBalanceBeforeWithdraw = IERC20Metadata(fundraisingTokenAddress).balanceOf(treasuryWalletAddress);
+        assert(treasuryBalanceBeforeWithdraw > 0);
+        vm.expectEmit(true, true, false, false);
+        emit Factory.EmergencyWithdrawn(treasuryWalletAddress, nonProfitOrg, treasuryBalanceBeforeWithdraw);
+        factory.emergencyWithdraw();
+
+        assertEq(
+            IERC20Metadata(fundraisingTokenAddress).balanceOf(treasuryWalletAddress),
+            0,
+            "Treasury wallet balance should be zero after emergency withdraw"
+        );
+        assertEq(
+            IERC20Metadata(fundraisingTokenAddress).balanceOf(nonProfitOrg),
+            treasuryBalanceBeforeWithdraw,
+            "Non profit org should receive the withdrawn amount"
+        );
     }
 }

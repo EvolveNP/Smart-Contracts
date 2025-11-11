@@ -110,7 +110,7 @@ contract Factory is Ownable2StepUpgradeable {
      */
     event DonationEmergencyPauseSet(address owner, address donationWallet, bool pause);
 
-    event EmergencyPauseSet(bool pause);
+    event AllTreasuriesPaused(bool pause);
     event EmergencyWithdrawn(address treasuryWallet, address owner, uint256 amount);
 
     /**
@@ -361,10 +361,7 @@ contract Factory is Ownable2StepUpgradeable {
      * @param _pause Boolean indicating whether to pause (true) or unpause (false) the treasury wallet.
      * @dev Only callable by the owner.
      */
-    function setTreasuryEmergencyPause(address _nonProfitOrgOwner, bool _pause)
-        external
-        nonZeroAddress(_nonProfitOrgOwner)
-    {
+    function setTreasuryPaused(address _nonProfitOrgOwner, bool _pause) external nonZeroAddress(_nonProfitOrgOwner) {
         FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
         // only called by non profit org
         if (msg.sender != protocol.owner) revert OnlyCalledByNonProfitOrg();
@@ -378,22 +375,22 @@ contract Factory is Ownable2StepUpgradeable {
      * @param _pause true if to enable emergency pause across all treasury and donations wallet or false
      * @dev Only called by the admin
      */
-    function setEmergencyPause(bool _pause) external onlyAdmin {
+    function setAllTreasuriesPaused(bool _pause) external onlyAdmin {
         if (pauseAll == _pause) revert EmergencyPauseAlreadySet();
         pauseAll = _pause;
 
-        emit EmergencyPauseSet(_pause);
+        emit AllTreasuriesPaused(_pause);
     }
 
-    function emergencyWithdraw(address _nonProfitOrgOwner) external {
-        FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
+    function emergencyWithdraw() external {
+        FundraisingProtocol memory protocol = protocols[msg.sender];
         // only called by non profit org
         if (msg.sender != protocol.owner) revert OnlyCalledByNonProfitOrg();
 
         TreasuryWallet treasury = TreasuryWallet(payable(protocol.treasuryWallet));
-        uint256 withdrawnAmount = treasury.emergencyWithdraw(_nonProfitOrgOwner);
+        uint256 withdrawnAmount = treasury.emergencyWithdraw(msg.sender);
 
-        emit EmergencyWithdrawn(address(treasury), _nonProfitOrgOwner, withdrawnAmount);
+        emit EmergencyWithdrawn(address(treasury), msg.sender, withdrawnAmount);
     }
 
     /**

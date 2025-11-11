@@ -7,6 +7,8 @@ import {DonationWallet} from "../src/DonationWallet.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 
 contract DonationWalletScript is Script, Config {
+    function test() public {}
+
     function run() public {
         uint256 chainId = block.chainid;
         console.log("Deploying to chain:", chainId);

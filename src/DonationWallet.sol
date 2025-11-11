@@ -48,16 +48,6 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      */
     event Paused(bool pause);
 
-    /**
-     * @notice Modifier to restrict access to functions to only the factory contract.
-     * @dev Ensures that the msg.sender matches the factoryAddress state variable.
-     * @custom:netmod Only the factory contract can call functions using this modifier.
-     */
-    modifier onlyFactory() {
-        if (msg.sender != factoryAddress) revert NotFactory();
-        _;
-    }
-
     modifier onlyRegistry() {
         if (msg.sender != registryAddress) revert NotRegistry();
         _;
