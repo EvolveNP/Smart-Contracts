@@ -222,14 +222,7 @@ contract Factory is Ownable2StepUpgradeable {
 
         // Deploy fundraising token
         FundRaisingToken fundraisingToken = new FundRaisingToken(
-            _tokenName,
-            _tokenSymbol,
-            _decimals,
-            owner(),
-            address(treasuryWallet),
-            address(donationWallet),
-            address(this),
-            totalSupply * 10 ** _decimals
+            _tokenName, _tokenSymbol, _decimals, owner(), address(treasuryWallet), totalSupply * 10 ** _decimals
         );
 
         donationWallet.initialize(

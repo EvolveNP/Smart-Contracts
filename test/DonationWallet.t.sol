@@ -46,11 +46,7 @@ contract DonationWalletTest is Test {
             donationWalletBeacon,
             address(23)
         );
-        fundraisingToken = address(
-            new FundRaisingToken(
-                "FundRaisingToken", "FRT", 6, address(10), address(10), address(10), address(factory), 2e24
-            )
-        );
+        fundraisingToken = address(new FundRaisingToken("FundRaisingToken", "FRT", 6, address(10), address(10), 2e24));
         donationWallet.initialize(
             address(factory),
             nonProfitOrgAddress,

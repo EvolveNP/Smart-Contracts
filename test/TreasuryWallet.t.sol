@@ -51,9 +51,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet = TreasuryWallet(payable(payable(address(new BeaconProxy(treasuryBeacon, "")))));
         address factoryImplementation = address(new Factory());
         factoryProxy = address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes("")));
-        fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken", "FRT", 6, LP_MANAGER, address(treasuryWallet), DONATION, FACTORY, 1e27
-        );
+        fundRaisingToken = new FundRaisingToken("FundRaisingToken", "FRT", 6, LP_MANAGER, address(treasuryWallet), 1e27);
 
         treasuryWallet.initialize(
             DONATION,

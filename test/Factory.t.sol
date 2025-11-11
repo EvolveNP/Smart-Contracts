@@ -349,8 +349,6 @@ contract FactoryTest is Test {
         assertEq(token.balanceOf(owner), 750_000_000 * 10 ** token.decimals());
         assertEq(token.lpManager(), factory.owner());
         assertEq(token.treasuryAddress(), treasuryWallet);
-        assertEq(token.donationAddress(), donationWallet);
-        assertEq(token.factoryAddress(), address(factory));
 
         DonationWallet dw = DonationWallet(payable(donationWallet));
         assertEq(dw.owner(), address(30));
