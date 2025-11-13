@@ -522,4 +522,16 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         assertEq(availableBalance, withdrawnBalance);
         assertEq(IERC20Metadata(fundRaisingToken).balanceOf(address(20)), withdrawnBalance);
     }
+
+    function testSetRegistryAddressOnlyCalledByFactory() public {
+        vm.expectRevert(TreasuryWallet.OnlyFactory.selector);
+        treasuryWallet.setRegistry(address(20));
+    }
+
+    function testSetRegistryAddressSetRegistryAddressCorrectly() public {
+        vm.startPrank(factoryProxy);
+        treasuryWallet.setRegistry(address(20));
+        assertEq(treasuryWallet.registryAddress(), address(20));
+        vm.stopPrank();
+    }
 }

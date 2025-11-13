@@ -244,4 +244,16 @@ contract DonationWalletTest is Test {
         vm.deal(address(donationWallet), 1 ether);
         assertEq(address(donationWallet).balance, 1 ether);
     }
+
+    function testSetRegistryAddressOnlyCalledByFactory() public {
+        vm.expectRevert(DonationWallet.NotFactory.selector);
+        donationWallet.setRegistry(address(20));
+    }
+
+    function testSetRegistryAddressSetRegistryAddressCorrectly() public {
+        vm.startPrank(address(factory));
+        donationWallet.setRegistry(address(20));
+        assertEq(donationWallet.registryAddress(), address(20));
+        vm.stopPrank();
+    }
 }

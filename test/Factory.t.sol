@@ -553,4 +553,78 @@ contract FactoryTest is Test {
             "Non profit org should receive the withdrawn amount"
         );
     }
+
+    function testSetRegistryAddressForTreasuryRevertsOnZeroNonProfitOrgAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.setRegistryForTreasuryWallet(address(0), registryAddress);
+    }
+
+    function testSetRegistryAddressForTreasuryRevertsOnZeroRegistryAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.setRegistryForTreasuryWallet(address(20), address(0));
+    }
+
+    function testSetRegistryAddressForTreasuryRevertsIfNotCalledbyOwner() public {
+        vm.prank(address(0x10));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
+        factory.setRegistryForTreasuryWallet(address(20), registryAddress);
+    }
+
+    function testSetRegistryAddressForTreasuryRevertsIfVaultIsNotCreated() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Factory.ProtocolNotAvailable.selector);
+        factory.setRegistryForTreasuryWallet(address(20), registryAddress);
+    }
+
+    function testSetRegistryAddressForTreasuryRevertsIfAlreadySet() public {
+        vm.startPrank(owner);
+        factory.setRegistryForTreasuryWallet(nonProfitOrg, registryAddress);
+        vm.expectRevert(Factory.RegistryAlreadySet.selector);
+        factory.setRegistryForTreasuryWallet(nonProfitOrg, registryAddress);
+    }
+
+    function testSetRegistryAddressForTreasurySetRegistryAddressForTheGivenTreasuryAndEmitsEvent() public {
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit Factory.RegistryAddressForTreasurySet(treasuryWalletAddress, registryAddress);
+        factory.setRegistryForTreasuryWallet(nonProfitOrg, registryAddress);
+        assertEq(TreasuryWallet(payable(treasuryWalletAddress)).registryAddress(), registryAddress);
+    }
+
+    function testSetRegistryAddressForDonationRevertsOnZeroNonProfitOrgAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.setRegistryForDonationWallet(address(0), registryAddress);
+    }
+
+    function testSetRegistryAddressForDonationRevertsOnZeroRegistryAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.setRegistryForDonationWallet(address(20), address(0));
+    }
+
+    function testSetRegistryAddressForDonationRevertsIfNotCalledbyOwner() public {
+        vm.prank(address(0x10));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
+        factory.setRegistryForDonationWallet(address(20), registryAddress);
+    }
+
+    function testSetRegistryAddressForDonationRevertsIfVaultIsNotCreated() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Factory.ProtocolNotAvailable.selector);
+        factory.setRegistryForDonationWallet(address(20), registryAddress);
+    }
+
+    function testSetRegistryAddressForDonationRevertsIfAlreadySet() public {
+        vm.startPrank(owner);
+        factory.setRegistryForDonationWallet(nonProfitOrg, registryAddress);
+        vm.expectRevert(Factory.RegistryAlreadySet.selector);
+        factory.setRegistryForDonationWallet(nonProfitOrg, registryAddress);
+    }
+
+    function testSetRegistryAddressForDonationSetRegistryAddressForTheGivenTreasuryAndEmitsEvent() public {
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit Factory.RegistryAddressForDonationSet(donationWalletAddress, registryAddress);
+        factory.setRegistryForDonationWallet(nonProfitOrg, registryAddress);
+        assertEq(DonationWallet(payable(donationWalletAddress)).registryAddress(), registryAddress);
+    }
 }

@@ -74,9 +74,27 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     receive() external payable {}
 
     /**
+     * @notice Initializes the fundraising contract with required configuration and dependencies.
+     * @dev This function can only be called once. It sets up core contract addresses,
+     *      initializes Uniswap-related components, and stores fundraising-related metadata.
+     *      Reverts if any provided address is zero.
      *
-     * @param _donationAddress The address of the donation wallet
-     * @param _factoryAddress The address of the factory contract
+     * @param _donationAddress The address of the wallet that will receive donations.
+     * @param _factoryAddress The address of the factory contract that deployed this instance.
+     * @param _router The address of the Uniswap V3 router used for token swaps.
+     * @param _poolManager The address of the Uniswap V4 pool manager handling liquidity pools.
+     * @param _permit2 The address of the Permit2 contract used for token approvals and transfers.
+     * @param _positionManager The address of the Uniswap NonfungiblePositionManager for LP positions.
+     * @param _quoter The address of the Uniswap Quoter contract for fetching on-chain quotes.
+     * @param _tickSpacing The tick spacing used for creating and managing Uniswap pools.
+     * @param _fundraisingToken The address of the ERC20 fundraising token contract.
+     * @param _stateView The address of a read-only state view contract for external data aggregation.
+     *
+     * @custom:oz-upgrades This function replaces the constructor for upgradeable contracts.
+     *                     It must be called through an initializer modifier to prevent reinitialization.
+     *
+     * @custom:security Reverts if any provided address is the zero address.
+     *                  Ensure trusted addresses are provided to prevent misconfiguration or token loss.
      */
     function initialize(
         address _donationAddress,
@@ -140,15 +158,33 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     }
 
     /**
-     * @notice Enables or disables emergency pause
-     * @param _pause set true to enable emergency pause otherwise set false
-     * @dev Only factory can set emergency pause
+     * @notice Toggles the emergency pause state of the contract.
+     * @dev Can only be called by the factory contract.
+     *      Reverts if the pause state is already set to the requested value.
+     *
+     * @param _pause Set to `true` to enable emergency pause, or `false` to disable it.
+     *
+     * @custom:security Only the factory contract is authorized to call this function.
+     *                  Pausing may halt critical operations (e.g., performUpkeep).
      */
     function emergencyPause(bool _pause) external onlyFactory {
         if (paused == _pause) revert EmergencyPauseAlreadySet();
         paused = _pause;
     }
 
+    /**
+     * @notice Withdraws all available fundraising tokens from the contract during an emergency.
+     * @dev Can only be called by the factory contract and only when the contract is paused.
+     *      Reverts if the treasury is not paused or if no funds are available for withdrawal.
+     *      The corresponding `EmergencyWithdrawal` event is emitted by the factory.
+     *
+     * @param _to The address that will receive the withdrawn funds.
+     * @return amount The total number of fundraising tokens withdrawn.
+     *
+     * @custom:security Only the factory contract can trigger this function.
+     *                  Ensure `_to` is a trusted address, as all remaining funds are transferred.
+     *                  This function bypasses normal withdrawal logic for emergency fund recovery.
+     */
     function emergencyWithdraw(address _to) external onlyFactory returns (uint256) {
         uint256 availableAmount = fundraisingToken.balanceOf(address(this));
         if (!isTreasuryPaused()) revert TreasuryNotPaused();
@@ -159,10 +195,19 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         return availableAmount;
     }
 
+    /**
+     * @notice Used to set the chainlink registry address
+     * @param _registryAddress The address of registry to be set
+     * @dev Only called by factory
+     */
     function setRegistry(address _registryAddress) external onlyFactory {
         registryAddress = _registryAddress;
     }
 
+    /**
+     * @notice Used to get wether the treasury is paused or not
+     * @return Returs true if paused otherwise false
+     */
     function isTreasuryPaused() public view returns (bool) {
         return paused || IFactory(factoryAddress).pauseAll();
     }

@@ -3,4 +3,5 @@ pragma solidity 0.8.26;
 
 interface IDonationWallet {
     function owner() external view returns (address);
+    function registryAddress() external view returns (address);
 }

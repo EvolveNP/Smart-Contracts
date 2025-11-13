@@ -45,6 +45,7 @@ contract Factory is Ownable2StepUpgradeable {
     error InvlidLPHealthThreshold();
     error OnlyCalledByNonProfitOrg();
     error ProtocolNotAvailable();
+    error RegistryAlreadySet();
 
     struct FundraisingProtocol {
         address fundraisingToken; // The address of the fundraising token
@@ -60,7 +61,7 @@ contract Factory is Ownable2StepUpgradeable {
     mapping(address => FundraisingProtocol) public protocols; // non profit org wallet address => protocol
 
     // uniswap constants
-    mapping(address => PoolKey) public poolKeys; // lp address => pool key:  store pool keys for easy access
+    mapping(address => PoolKey) internal poolKeys; // lp address => pool key:  store pool keys for easy access
     address public router; // The address of the uniswap universal router
     address public permit2; // The address of the uniswap permit2 contract
     int24 public constant defaultTickSpacing = 60; // default tick spacing for the pool
@@ -112,8 +113,8 @@ contract Factory is Ownable2StepUpgradeable {
 
     event AllTreasuriesPaused(bool pause);
     event EmergencyWithdrawn(address treasuryWallet, address owner, uint256 amount);
-    event RegistryAddressForTreasurySet(address registryAddress);
-    event RegistryAddressForDonationSet(address registryAddress);
+    event RegistryAddressForTreasurySet(address treasuryWallet, address registryAddress);
+    event RegistryAddressForDonationSet(address donationWallet, address registryAddress);
 
     /**
      * @notice Ensures that the provided address is not the zero address.
@@ -148,11 +149,20 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     /**
+     * @notice Initializes the contract with the necessary Uniswap and protocol addresses.
+     * @dev This function can only be called once due to the `initializer` modifier.
+     *      All provided addresses must be non-zero.
+     *      Sets the contract owner as the deployer (`msg.sender`).
      *
-     * @param _poolManager The address of the uniswap v4 pool manager
-     * @param _positionManager The address of the uniswap v4 position manager
-     * @param _router The address of the uniswap universal router
-     * @param _permit2 The address of the uniswap permit2 contract
+     * @param _poolManager The address of the Uniswap V4 pool manager contract.
+     * @param _positionManager The address of the Uniswap V4 position manager contract.
+     * @param _router The address of the Uniswap universal router contract.
+     * @param _permit2 The address of the Uniswap Permit2 contract for token approvals.
+     * @param _quoter The address of the Uniswap quoter contract for price queries.
+     * @param _admin The address of the admin with special permissions in this protocol.
+     * @param _treasuryWalletBeacon The beacon address for deploying TreasuryWallet proxies.
+     * @param _donationWalletBeacon The beacon address for deploying DonationWallet proxies.
+     * @param _stateView The address of the state view contract used for protocol state queries.
      */
     function initialize(
         address _poolManager,
@@ -190,12 +200,25 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice deploys the contracts for specific non profit organization
-     * @param _tokenName The name of the fundraising token
-     * @param _tokenSymbol The symbol of the fundraising token
-     * @param _underlyingAddress The address of the underlying token (e.g., USDC, ETH). If address(0), defaults to 18 decimals
-     * @param _owner The address of the owner who receives the donation
-     * @dev only called by owner
+     * @notice Deploys and initializes contracts for a specific non-profit organization's fundraising vault.
+     * @dev Can only be called by the contract owner.
+     *      Reverts if a vault already exists for the given owner.
+     *      Deploys new instances of DonationWallet and TreasuryWallet via beacon proxies.
+     *      Creates a new fundraising token with decimals matching the underlying token if provided.
+     *      Initializes the deployed wallets with relevant protocol parameters.
+     *      Registers the deployed contracts in the `protocols` mapping.
+     *
+     * @param _tokenName The name of the fundraising token to be deployed.
+     * @param _tokenSymbol The symbol of the fundraising token to be deployed.
+     * @param _underlyingAddress The address of the underlying ERC20 token (e.g., USDC, ETH).
+     *                           If `address(0)`, defaults to 18 decimals for the fundraising token.
+     * @param _owner The address of the non-profit organization owner who will receive donations and own the vault.
+     *
+     * @custom:security Only the contract owner can call this function to prevent unauthorized vault creation.
+     *                  Ensure `_owner` is a trusted entity to avoid misconfiguration.
+     *
+     * @custom:event Emits a {FundraisingVaultCreated} event with the addresses of the deployed fundraising token,
+     *               donation wallet, treasury wallet, and the owner.
      */
     function createFundraisingVault(
         string calldata _tokenName,
@@ -256,12 +279,23 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Creates a Uniswap V4 pool for the fundraising token and another currency
-     * @param _owner The owner of the pool manager
-     * @param _amount0 The price of currency 0 (underlying asset)
-     * @param _amount1 The price of the currency 1 (fundraising token)
-     * @dev Only callable by the owner of the factory contract
-     * @dev _sqrtPriceX96 calculated as floor(sqrt(token0/token1) * 2^96)
+     * @notice Creates a Uniswap V4 liquidity pool for a fundraising token and an underlying currency.
+     * @dev Only callable by the factory contract owner.
+     *      The function handles token transfers, pool initialization, liquidity provisioning,
+     *      and hook deployment for swap callbacks.
+     *      Reverts if the fundraising vault or treasury wallet does not exist,
+     *      or if the liquidity pool has already been created.
+     *      The `_sqrtPriceX96` is calculated as floor(sqrt(token1/token0) * 2^96).
+     *
+     * @param _owner The address of the non-profit organization owner associated with the pool.
+     * @param _amount0 The amount representing the price or quantity of currency 0 (underlying asset).
+     * @param _amount1 The amount representing the price or quantity of currency 1 (fundraising token).
+     *
+     * @custom:security This function requires approval for ERC20 transfers by the caller.
+     *                  The caller must ensure sufficient balances and allowances are set prior to calling.
+     *                  The owner must be authorized and the vault properly initialized.
+     *
+     * @custom:event Emits a {LiquidityPoolCreated} event with the underlying and fundraising token addresses and the owner.
      */
     function createPool(address _owner, uint256 _amount0, uint256 _amount1)
         external
@@ -339,9 +373,16 @@ contract Factory is Ownable2StepUpgradeable {
 
     /**
      * @notice Sets the emergency pause state for the treasury wallet of a specific non-profit organization.
+     * @dev Can only be called by the non-profit organization owner.
+     *      Reverts if called by anyone other than the protocol owner.
+     *
      * @param _nonProfitOrgOwner The address of the non-profit organization owner whose treasury wallet will be paused or unpaused.
-     * @param _pause Boolean indicating whether to pause (true) or unpause (false) the treasury wallet.
-     * @dev Only callable by the owner.
+     * @param _pause Set to `true` to pause, or `false` to unpause the treasury wallet.
+     *
+     * @custom:security Only the non-profit organization owner can call this function to prevent unauthorized pause toggling.
+     *                  Pausing the treasury wallet may halt critical fund operations.
+     *
+     * @custom:event Emits a {TreasuryEmergencyPauseSet} event indicating the new pause state for audit and tracking.
      */
     function setTreasuryPaused(address _nonProfitOrgOwner, bool _pause) external nonZeroAddress(_nonProfitOrgOwner) {
         FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
@@ -353,9 +394,16 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Enable or disable emergency pause across all treasury and donations wallet
-     * @param _pause true if to enable emergency pause across all treasury and donations wallet or false
-     * @dev Only called by the admin
+     * @notice Enables or disables emergency pause across all treasury and donation wallets.
+     * @dev Can only be called by the admin.
+     *      Reverts if the pause state is already set to the requested value.
+     *
+     * @param _pause Set to `true` to enable emergency pause, or `false` to disable it.
+     *
+     * @custom:security Restricted to admin access to prevent unauthorized pausing of funds.
+     *                  Pausing halts critical operations across all treasury and donation wallets.
+     *
+     * @custom:event Emits an {AllTreasuriesPaused} event indicating the new pause state.
      */
     function setAllTreasuriesPaused(bool _pause) external onlyAdmin {
         if (pauseAll == _pause) revert EmergencyPauseAlreadySet();
@@ -364,6 +412,22 @@ contract Factory is Ownable2StepUpgradeable {
         emit AllTreasuriesPaused(_pause);
     }
 
+    /**
+     * @notice Allows a nonprofit organization to withdraw all available funds from its treasury wallet during an emergency.
+     * @dev Can only be called by the nonprofit organization that owns the corresponding fundraising protocol.
+     *      Reverts if the caller is not the registered protocol owner.
+     *      Delegates the withdrawal logic to the associated `TreasuryWallet` contract,
+     *      which must be in a paused state before this call can succeed.
+     *
+     * @custom:behavior This function triggers a full emergency withdrawal from the treasury wallet
+     *                  to the nonprofit organization's address (`msg.sender`).
+     *
+     * @custom:event Emits an {EmergencyWithdrawn} event upon successful withdrawal,
+     *               providing the treasury address, the nonprofit organization address, and the withdrawn amount.
+     *
+     * @custom:security Only callable by the protocol owner (`msg.sender == protocol.owner`).
+     *                  Ensure the treasury is paused before calling to prevent reentrancy or double withdrawal.
+     */
     function emergencyWithdraw() external {
         FundraisingProtocol memory protocol = protocols[msg.sender];
         // only called by non profit org
@@ -375,26 +439,77 @@ contract Factory is Ownable2StepUpgradeable {
         emit EmergencyWithdrawn(address(treasury), msg.sender, withdrawnAmount);
     }
 
-    function setRegistryForTreasuryWallet(address _nonProfitOrg, address _registryAddress) external onlyOwner {
+    /**
+     * @notice Updates the registry contract address for a specific nonprofit organization's treasury wallet.
+     * @dev Can only be called by the contract owner.
+     *      Reverts if the specified nonprofit organization does not have a registered treasury wallet. or
+     *      if the provided registry address is already set in the treasury wallet
+     *      The new registry address is forwarded to the corresponding `TreasuryWallet` contract.
+     *
+     * @param _nonProfitOrg The address of the nonprofit organization whose treasury registry is being updated.
+     * @param _registryAddress The new registry contract address to associate with the treasury wallet.
+     *
+     * @custom:security Only callable by the contract owner to prevent unauthorized registry updates.
+     *                  Ensure that `_registryAddress` points to a trusted and verified registry contract.
+     *
+     * @custom:event Emits a {RegistryAddressForTreasurySet} event after successfully updating the registry.
+     */
+    function setRegistryForTreasuryWallet(address _nonProfitOrg, address _registryAddress)
+        external
+        nonZeroAddress(_nonProfitOrg)
+        nonZeroAddress(_registryAddress)
+        onlyOwner
+    {
         FundraisingProtocol memory protocol = protocols[_nonProfitOrg];
         // only called by non profit org
         if (protocol.treasuryWallet == address(0)) revert ProtocolNotAvailable();
         TreasuryWallet treasury = TreasuryWallet(payable(protocol.treasuryWallet));
-
+        if (treasury.registryAddress() == _registryAddress) revert RegistryAlreadySet();
         treasury.setRegistry(_registryAddress);
 
-        emit RegistryAddressForTreasurySet(_registryAddress);
+        emit RegistryAddressForTreasurySet(protocol.treasuryWallet, _registryAddress);
     }
 
-    function setRegistryForDonationWallet(address _nonProfitOrg, address _registryAddress) external onlyOwner {
+    /**
+     * @notice Updates the registry contract address for a specific nonprofit organization's donation wallet.
+     * @dev Can only be called by the contract owner.
+     *      Reverts if the specified nonprofit organization does not have a registered donation wallet,
+     *      or if the provided registry address is already set in the donation wallet.
+     *      The new registry address is forwarded to the corresponding `DonationWallet` contract.
+     *
+     * @param _nonProfitOrg The address of the nonprofit organization whose donation registry is being updated.
+     * @param _registryAddress The new registry contract address to associate with the donation wallet.
+     *
+     * @custom:security Only callable by the contract owner to prevent unauthorized registry changes.
+     *                  Ensure `_registryAddress` points to a verified and trusted registry contract.
+     *                  Avoid setting an identical registry address to prevent unnecessary state updates.
+     *
+     * @custom:event Emits a {RegistryAddressForDonationSet} event after successfully updating the registry.
+     */
+    function setRegistryForDonationWallet(address _nonProfitOrg, address _registryAddress)
+        external
+        nonZeroAddress(_nonProfitOrg)
+        nonZeroAddress(_registryAddress)
+        onlyOwner
+    {
         FundraisingProtocol memory protocol = protocols[_nonProfitOrg];
         // only called by non profit org
         if (protocol.donationWallet == address(0)) revert ProtocolNotAvailable();
         DonationWallet donation = DonationWallet(payable(protocol.donationWallet));
-
+        if (donation.registryAddress() == _registryAddress) revert RegistryAlreadySet();
         donation.setRegistry(_registryAddress);
 
-        emit RegistryAddressForDonationSet(_registryAddress);
+        emit RegistryAddressForDonationSet(protocol.donationWallet, _registryAddress);
+    }
+
+    /**
+     * @notice Returns the PoolKey associated with a given owner address.
+     * @dev Retrieves the PoolKey struct from the mapping using the provided owner address.
+     * @param _owner The address of the pool owner whose PoolKey is to be retrieved.
+     * @return The PoolKey struct corresponding to the specified owner address.
+     */
+    function getPoolKey(address _owner) external view returns (PoolKey memory) {
+        return poolKeys[_owner];
     }
 
     /**
@@ -447,6 +562,20 @@ contract Factory is Ownable2StepUpgradeable {
             abi.encodeWithSelector(IPositionManager.modifyLiquidities.selector, abi.encode(actions, params), deadline);
     }
 
+    /**
+     * @notice Deploys a new `FundraisingTokenHook` contract instance for a given fundraising token and treasury.
+     * @dev This function deterministically deploys a hook contract with the correct Uniswap V4 hook flags.
+     *      It mines a unique salt to ensure the deployed address matches the expected flag configuration.
+     *      The hook is used to intercept swap operations for custom logic related to the fundraising protocol.
+     *
+     * @param _fundraisingToken The address of the fundraising token associated with this hook.
+     * @param _treasuryAddress The address of the treasury wallet that will receive swap proceeds or fees.
+     * @return hook The deployed `IHooks` contract instance configured for the given fundraising token and treasury.
+     *
+     * @custom:security This function is internal and should only be called from controlled factory logic.
+     * @custom:tech Uses `HookMiner.find()` to compute a valid salt ensuring the deployed address conforms
+     *              to required Uniswap V4 hook flag bits.
+     */
     function deployHook(address _fundraisingToken, address _treasuryAddress) internal returns (IHooks hook) {
         uint160 flags = uint160(
             Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
@@ -459,15 +588,5 @@ contract Factory is Ownable2StepUpgradeable {
             HookMiner.find(address(this), flags, type(FundraisingTokenHook).creationCode, constructorArgs);
 
         hook = new FundraisingTokenHook{salt: salt}(poolManager, _fundraisingToken, _treasuryAddress);
-    }
-
-    /**
-     * @notice Returns the PoolKey associated with a given owner address.
-     * @dev Retrieves the PoolKey struct from the mapping using the provided owner address.
-     * @param _owner The address of the pool owner whose PoolKey is to be retrieved.
-     * @return The PoolKey struct corresponding to the specified owner address.
-     */
-    function getPoolKey(address _owner) external view returns (PoolKey memory) {
-        return poolKeys[_owner];
     }
 }
