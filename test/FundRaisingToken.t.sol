@@ -49,7 +49,6 @@ contract FundRaisingTokenTest is Test {
         Factory factory =
             Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             router,

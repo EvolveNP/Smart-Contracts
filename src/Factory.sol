@@ -44,6 +44,7 @@ contract Factory is Ownable2StepUpgradeable {
     error InvalidAmount0();
     error InvlidLPHealthThreshold();
     error OnlyCalledByNonProfitOrg();
+    error ProtocolNotAvailable();
 
     struct FundraisingProtocol {
         address fundraisingToken; // The address of the fundraising token
@@ -56,7 +57,6 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     uint256 public constant totalSupply = 1e9; // the total supply of fundraising token
-    address public registryAddress; // The address of chainlink automation registry address
     mapping(address => FundraisingProtocol) public protocols; // non profit org wallet address => protocol
 
     // uniswap constants
@@ -112,6 +112,8 @@ contract Factory is Ownable2StepUpgradeable {
 
     event AllTreasuriesPaused(bool pause);
     event EmergencyWithdrawn(address treasuryWallet, address owner, uint256 amount);
+    event RegistryAddressForTreasurySet(address registryAddress);
+    event RegistryAddressForDonationSet(address registryAddress);
 
     /**
      * @notice Ensures that the provided address is not the zero address.
@@ -147,14 +149,12 @@ contract Factory is Ownable2StepUpgradeable {
 
     /**
      *
-     * @param _registryAddress The address of chainlink automation registry address
      * @param _poolManager The address of the uniswap v4 pool manager
      * @param _positionManager The address of the uniswap v4 position manager
      * @param _router The address of the uniswap universal router
      * @param _permit2 The address of the uniswap permit2 contract
      */
     function initialize(
-        address _registryAddress,
         address _poolManager,
         address _positionManager,
         address _router,
@@ -167,7 +167,6 @@ contract Factory is Ownable2StepUpgradeable {
     )
         external
         initializer
-        nonZeroAddress(_registryAddress)
         nonZeroAddress(_poolManager)
         nonZeroAddress(_positionManager)
         nonZeroAddress(_router)
@@ -179,7 +178,6 @@ contract Factory is Ownable2StepUpgradeable {
         nonZeroAddress(_stateView)
     {
         __Ownable_init(msg.sender);
-        registryAddress = _registryAddress;
         poolManager = _poolManager;
         positionManager = _positionManager;
         router = _router;
@@ -226,21 +224,12 @@ contract Factory is Ownable2StepUpgradeable {
         );
 
         donationWallet.initialize(
-            address(this),
-            _owner,
-            router,
-            poolManager,
-            permit2,
-            positionManager,
-            quoter,
-            address(fundraisingToken),
-            registryAddress
+            address(this), _owner, router, poolManager, permit2, positionManager, quoter, address(fundraisingToken)
         );
 
         treasuryWallet.initialize(
             address(donationWallet),
             address(this),
-            registryAddress,
             router,
             poolManager,
             permit2,
@@ -384,6 +373,28 @@ contract Factory is Ownable2StepUpgradeable {
         uint256 withdrawnAmount = treasury.emergencyWithdraw(msg.sender);
 
         emit EmergencyWithdrawn(address(treasury), msg.sender, withdrawnAmount);
+    }
+
+    function setRegistryForTreasuryWallet(address _nonProfitOrg, address _registryAddress) external onlyOwner {
+        FundraisingProtocol memory protocol = protocols[_nonProfitOrg];
+        // only called by non profit org
+        if (protocol.treasuryWallet == address(0)) revert ProtocolNotAvailable();
+        TreasuryWallet treasury = TreasuryWallet(payable(protocol.treasuryWallet));
+
+        treasury.setRegistry(_registryAddress);
+
+        emit RegistryAddressForTreasurySet(_registryAddress);
+    }
+
+    function setRegistryForDonationWallet(address _nonProfitOrg, address _registryAddress) external onlyOwner {
+        FundraisingProtocol memory protocol = protocols[_nonProfitOrg];
+        // only called by non profit org
+        if (protocol.donationWallet == address(0)) revert ProtocolNotAvailable();
+        DonationWallet donation = DonationWallet(payable(protocol.donationWallet));
+
+        donation.setRegistry(_registryAddress);
+
+        emit RegistryAddressForDonationSet(_registryAddress);
     }
 
     /**

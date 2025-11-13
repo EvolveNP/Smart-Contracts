@@ -65,7 +65,6 @@ contract FactoryTest is Test {
         address factoryImplementation = address(new Factory());
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             router,
@@ -89,25 +88,6 @@ contract FactoryTest is Test {
         Factory factoryImplementation = new Factory();
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         factoryImplementation.initialize(
-            registryAddress,
-            poolManager,
-            positionManager,
-            router,
-            permit2,
-            quoter,
-            admin,
-            treasuryWalletBeacon,
-            donationWalletBeacon,
-            stateView
-        );
-    }
-
-    function testInitializeRevertsOnZeroRegistryAddress() public {
-        address factoryImplementation = address(new Factory());
-        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
-        vm.expectRevert(Factory.ZeroAddress.selector);
-        factory.initialize(
-            address(0),
             poolManager,
             positionManager,
             router,
@@ -125,7 +105,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             address(0),
             positionManager,
             router,
@@ -143,7 +122,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             address(0),
             router,
@@ -161,16 +139,7 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
-            poolManager,
-            positionManager,
-            router,
-            permit2,
-            quoter,
-            admin,
-            address(0),
-            donationWalletBeacon,
-            stateView
+            poolManager, positionManager, router, permit2, quoter, admin, address(0), donationWalletBeacon, stateView
         );
     }
 
@@ -179,16 +148,7 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
-            poolManager,
-            positionManager,
-            router,
-            permit2,
-            quoter,
-            admin,
-            treasuryWalletBeacon,
-            address(0),
-            stateView
+            poolManager, positionManager, router, permit2, quoter, admin, treasuryWalletBeacon, address(0), stateView
         );
     }
 
@@ -197,7 +157,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             address(0),
@@ -215,7 +174,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             router,
@@ -233,7 +191,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             router,
@@ -251,7 +208,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             router,
@@ -269,7 +225,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             router,
@@ -283,7 +238,6 @@ contract FactoryTest is Test {
     }
 
     function testInitializeSetsStateVariables() public view {
-        assertEq(factory.registryAddress(), registryAddress);
         assertEq(factory.poolManager(), poolManager);
         assertEq(factory.positionManager(), positionManager);
         assertEq(factory.router(), router);
@@ -361,7 +315,6 @@ contract FactoryTest is Test {
         TreasuryWallet tw = TreasuryWallet(payable(treasuryWallet));
         assertEq(tw.donationAddress(), donationWallet);
         assertEq(tw.factoryAddress(), address(factory));
-        assertEq(tw.registryAddress(), registryAddress);
         assertEq(address(tw.router()), router);
         assertEq(address(tw.poolManager()), poolManager);
         assertEq(address(tw.permit2()), permit2);
@@ -482,24 +435,29 @@ contract FactoryTest is Test {
     function testSwapFundraisingToken() public {
         testCreatePoolOwnerCanCreateAPoolOnUniswap();
 
-        vm.startPrank(registryAddress);
+        vm.startPrank(address(factory));
 
         // transfer some amount to donation wallet
         vm.roll(block.number + 10);
         TreasuryWallet treasury = TreasuryWallet(payable(treasuryWalletAddress));
-
+        treasury.setRegistry(registryAddress);
         bytes memory performData = abi.encode(true, false);
-
+        vm.stopPrank();
+        vm.startPrank(registryAddress);
         treasury.performUpkeep(performData);
 
         assert(IERC20Metadata(fundraisingTokenAddress).balanceOf(donationWalletAddress) > 0);
 
         assert(IERC20Metadata(usdc).balanceOf(donationWalletAddress) == 0);
+        vm.stopPrank();
 
+        vm.startPrank(address(factory));
         // swap fundraising token to usdc
 
         DonationWallet donation = DonationWallet(payable(donationWalletAddress));
-
+        donation.setRegistry(registryAddress);
+        vm.stopPrank();
+        vm.startPrank(registryAddress);
         donation.performUpkeep(bytes(""));
 
         assert(IERC20Metadata(usdc).balanceOf(nonProfitOrg) > 0);

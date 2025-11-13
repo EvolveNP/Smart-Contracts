@@ -44,7 +44,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
     uint256 constant minimumHealthThreshhold = 5e16; // The minimum threshold for transferring funds
     uint256 constant minimumHealthThreshholdToAddLP = 10e15; // The minimum threshold to adjust health of the liquidity pool
-    uint256 public constant transferInterval = 30 minutes; // The interval at which funds transferred to donation wallet
+    uint256 public constant transferInterval = 30 days; // The interval at which funds transferred to donation wallet
     uint256 public constant minLPHealthThreshhold = 5e16; // The health threshold
     uint256 internal constant MULTIPLIER = 1e18;
     int24 internal tickSpacing;
@@ -77,12 +77,10 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      *
      * @param _donationAddress The address of the donation wallet
      * @param _factoryAddress The address of the factory contract
-     * @param _registryAddress The address of the registry
      */
     function initialize(
         address _donationAddress,
         address _factoryAddress,
-        address _registryAddress,
         address _router,
         address _poolManager,
         address _permit2,
@@ -97,12 +95,10 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         nonZeroAddress(_donationAddress)
         nonZeroAddress(_factoryAddress)
         nonZeroAddress(_fundraisingToken)
-        nonZeroAddress(_registryAddress)
     {
         __init(_router, _poolManager, _permit2, _positionManager, _quoter);
         donationAddress = _donationAddress;
         factoryAddress = _factoryAddress;
-        registryAddress = _registryAddress;
         stateView = _stateView;
         tickSpacing = _tickSpacing;
         fundraisingToken = IFundraisingToken(_fundraisingToken);
@@ -161,6 +157,10 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         fundraisingToken.transfer(_to, availableAmount);
 
         return availableAmount;
+    }
+
+    function setRegistry(address _registryAddress) external onlyFactory {
+        registryAddress = _registryAddress;
     }
 
     function isTreasuryPaused() public view returns (bool) {

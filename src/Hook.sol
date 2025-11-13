@@ -132,7 +132,7 @@ contract FundraisingTokenHook is BaseHook {
             isTransferBlocked(caller, _amountOut);
 
             if (block.timestamp < launchTimestamp + timeToHold) lastBuyTimestamp[caller] = block.timestamp;
-            
+
             if (isTaxCutEnabled) {
                 feeAmount = (uint256(_amountOut) * TAX_FEE_PERCENTAGE) / TAX_FEE_DENOMINATOR;
 
