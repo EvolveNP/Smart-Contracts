@@ -338,7 +338,7 @@ contract Factory is Ownable2StepUpgradeable {
         Currency currency1 = Currency.wrap(_currency1);
 
         // deploy hook
-        IHooks hook = deployHook(_protocol.fundraisingToken, _protocol.treasuryWallet);
+        IHooks hook = deployHook(_protocol.fundraisingToken, _protocol.treasuryWallet, _protocol.donationWallet);
 
         // transfer assets to this contract;
 
@@ -576,17 +576,20 @@ contract Factory is Ownable2StepUpgradeable {
      * @custom:tech Uses `HookMiner.find()` to compute a valid salt ensuring the deployed address conforms
      *              to required Uniswap V4 hook flag bits.
      */
-    function deployHook(address _fundraisingToken, address _treasuryAddress) internal returns (IHooks hook) {
+    function deployHook(address _fundraisingToken, address _treasuryAddress, address _donationAddress)
+        internal
+        returns (IHooks hook)
+    {
         uint160 flags = uint160(
             Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
                 | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         );
 
         // Mine a salt that will produce a hook address with the correct flags
-        bytes memory constructorArgs = abi.encode(poolManager, _fundraisingToken, _treasuryAddress);
+        bytes memory constructorArgs = abi.encode(poolManager, _fundraisingToken, _treasuryAddress, _donationAddress);
         (, bytes32 salt) =
             HookMiner.find(address(this), flags, type(FundraisingTokenHook).creationCode, constructorArgs);
 
-        hook = new FundraisingTokenHook{salt: salt}(poolManager, _fundraisingToken, _treasuryAddress);
+        hook = new FundraisingTokenHook{salt: salt}(poolManager, _fundraisingToken, _treasuryAddress, _donationAddress);
     }
 }
