@@ -51,14 +51,11 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet = TreasuryWallet(payable(payable(address(new BeaconProxy(treasuryBeacon, "")))));
         address factoryImplementation = address(new Factory());
         factoryProxy = address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes("")));
-        fundRaisingToken = new FundRaisingToken(
-            "FundRaisingToken", "FRT", 6, LP_MANAGER, address(treasuryWallet), DONATION, FACTORY, 1e27
-        );
+        fundRaisingToken = new FundRaisingToken("FundRaisingToken", "FRT", 6, LP_MANAGER, address(treasuryWallet), 1e27);
 
         treasuryWallet.initialize(
             DONATION,
             factoryProxy,
-            REGISTRY,
             ROUTER,
             POOL_MANAGER,
             PERMIT2,
@@ -76,7 +73,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet.initialize(
             address(0),
             FACTORY,
-            REGISTRY,
             ROUTER,
             POOL_MANAGER,
             PERMIT2,
@@ -93,25 +89,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
         treasuryWallet.initialize(
             DONATION,
-            address(0),
-            REGISTRY,
-            ROUTER,
-            POOL_MANAGER,
-            PERMIT2,
-            POSITION_MANAGER,
-            QUOTER,
-            DEFAULT_TICK,
-            address(fundRaisingToken),
-            STATE_VIEW
-        );
-    }
-
-    function testRevertOnZeroRegistryAddress() public {
-        treasuryWallet = TreasuryWallet(payable(address(new BeaconProxy(treasuryBeacon, ""))));
-        vm.expectRevert(Swap.ZeroAddress.selector); // should revert due to nonZeroAddress modifier
-        treasuryWallet.initialize(
-            DONATION,
-            FACTORY,
             address(0),
             ROUTER,
             POOL_MANAGER,
@@ -130,7 +107,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
-            REGISTRY,
             address(0),
             POOL_MANAGER,
             PERMIT2,
@@ -148,7 +124,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
-            REGISTRY,
             ROUTER,
             address(0),
             PERMIT2,
@@ -166,7 +141,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
-            REGISTRY,
             ROUTER,
             POOL_MANAGER,
             address(0),
@@ -184,7 +158,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
-            REGISTRY,
             ROUTER,
             POOL_MANAGER,
             PERMIT2,
@@ -202,7 +175,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
-            REGISTRY,
             ROUTER,
             POOL_MANAGER,
             PERMIT2,
@@ -220,7 +192,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
-            REGISTRY,
             ROUTER,
             POOL_MANAGER,
             PERMIT2,
@@ -237,7 +208,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
-            REGISTRY,
             ROUTER,
             POOL_MANAGER,
             PERMIT2,
@@ -252,7 +222,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
-            REGISTRY,
             ROUTER,
             POOL_MANAGER,
             PERMIT2,
@@ -269,7 +238,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryWallet.initialize(
             DONATION,
             FACTORY,
-            REGISTRY,
             ROUTER,
             POOL_MANAGER,
             PERMIT2,
@@ -282,7 +250,6 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
 
         assertEq(treasuryWallet.donationAddress(), DONATION);
         assertEq(treasuryWallet.factoryAddress(), FACTORY);
-        assertEq(treasuryWallet.registryAddress(), REGISTRY);
         assertEq(treasuryWallet.transferInterval(), TRANSFER_INTERVAL);
     }
 
@@ -362,9 +329,12 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     function testPerformUpkeepCannotInitiateTransferIfInitiateTransferIsFalseAndCannotInitiateAddLiquidityIfInitiateAddLiquidityIsFalse()
         public
     {
-        vm.startPrank(REGISTRY);
+        vm.startPrank(address(factoryProxy));
         bytes memory _performData = abi.encode(false, false);
         uint256 balanceBeforePerformUpKeep = IERC20Metadata(fundRaisingToken).balanceOf(address(treasuryWallet));
+        treasuryWallet.setRegistry(REGISTRY);
+        vm.stopPrank();
+        vm.startPrank(REGISTRY);
         treasuryWallet.performUpkeep(_performData);
         uint256 balanceAfterPerformUpKeep = IERC20Metadata(fundRaisingToken).balanceOf(address(treasuryWallet));
 
@@ -372,11 +342,14 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     }
 
     function testPerformUpKeepTransferFundsToDonationWalletIfInitiateTransferIsTrue() public {
-        vm.startPrank(REGISTRY);
+        vm.startPrank(address(factoryProxy));
         bytes memory _performData = abi.encode(true, false);
         uint256 totalSupplyBeforeBurn = fundRaisingToken.totalSupply();
         uint256 amountToTransferAndBurn = (fundRaisingToken.totalSupply() * 2e16) / 1e18; // 2% of total supply
         uint256 treasuryBalanceBeforeTransfer = fundRaisingToken.balanceOf(address(treasuryWallet));
+        treasuryWallet.setRegistry(REGISTRY);
+        vm.stopPrank();
+        vm.startPrank(REGISTRY);
         treasuryWallet.performUpkeep(_performData);
 
         assertEq(fundRaisingToken.totalSupply(), totalSupplyBeforeBurn - amountToTransferAndBurn);
@@ -396,6 +369,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         address nonProfitOrg = address(0x7);
         (address fundraisingTokenAddress,, address treasury,,,,) = factory.protocols(nonProfitOrg);
         address registry = factoryTest.registryAddress();
+
         // buy tokens to make lp under health
         address USDC_WHALE = factoryTest.USDC_WHALE();
 
@@ -411,8 +385,12 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         vm.warp(block.timestamp + 3 hours);
         uint256 minAmountOut = _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, fundraisingTokenAddress);
         buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, fundraisingTokenAddress);
-        vm.startPrank(registry);
+        vm.stopPrank();
+        vm.startPrank(address(factory));
         TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        treasuryInstance.setRegistry(registry);
+        vm.stopPrank();
+        vm.startPrank(registry);
         bytes memory performData = abi.encode(false, true);
         treasuryInstance.performUpkeep(performData);
     }
@@ -444,9 +422,12 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
 
         buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, _fundRaisingToken);
 
-        vm.startPrank(registry);
+        vm.startPrank(address(factory));
         vm.deal(registry, 10 ether);
         TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        treasuryInstance.setRegistry(registry);
+        vm.stopPrank();
+        vm.startPrank(registry);
         bytes memory performData = abi.encode(false, true);
         treasuryInstance.performUpkeep(performData);
 
@@ -465,8 +446,11 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         address nonProfitOrg = address(0x7);
         (,, address treasury,,,,) = factory.protocols(nonProfitOrg);
         address registry = factoryTest.registryAddress();
-        vm.startPrank(registry);
+        vm.startPrank(address(factory));
         TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        treasuryInstance.setRegistry(registry);
+        vm.stopPrank();
+        vm.startPrank(registry);
         bytes memory performData = abi.encode(false, false);
         treasuryInstance.performUpkeep(performData);
     }
@@ -537,5 +521,17 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
 
         assertEq(availableBalance, withdrawnBalance);
         assertEq(IERC20Metadata(fundRaisingToken).balanceOf(address(20)), withdrawnBalance);
+    }
+
+    function testSetRegistryAddressOnlyCalledByFactory() public {
+        vm.expectRevert(TreasuryWallet.OnlyFactory.selector);
+        treasuryWallet.setRegistry(address(20));
+    }
+
+    function testSetRegistryAddressSetRegistryAddressCorrectly() public {
+        vm.startPrank(factoryProxy);
+        treasuryWallet.setRegistry(address(20));
+        assertEq(treasuryWallet.registryAddress(), address(20));
+        vm.stopPrank();
     }
 }

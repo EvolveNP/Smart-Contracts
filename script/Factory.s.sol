@@ -36,7 +36,6 @@ contract FactoryScript is Script, Config {
         console.log("Factory deployed at:", address(factory));
 
         factory.initialize(
-            registry,
             poolManager,
             positionManager,
             router,

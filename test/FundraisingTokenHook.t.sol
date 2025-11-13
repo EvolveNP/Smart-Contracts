@@ -20,6 +20,7 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {BuyFundraisingTokens} from "./BuyTokens.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {TreasuryWallet} from "../src/TreasuryWallet.sol";
 
 contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
     uint256 mainnetFork;
@@ -197,7 +198,6 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         IERC20(usdc).approve(address(permit2), type(uint256).max);
         permit2.approve(usdc, address(router), amountIn, uint48(deadline));
-        console.log(address(this), "addr");
         vm.expectRevert(
             abi.encodeWithSelector(
                 CustomRevert.WrappedError.selector,
@@ -287,5 +287,95 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         uint256 _minAmountOut = _getMinAmountOut(key, amountIn3, bytes(""), qouter, slippage, fundraisingTokenAddress);
 
         buyFundraisingToken(key, amountIn3, uint128(_minAmountOut), permit2, router, fundraisingTokenAddress);
+    }
+
+    function testCannotIncurTaxIfTreasuryWalletIsPaused() public {
+        factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
+
+        key = factory.getPoolKey(factoryTest.nonProfitOrg());
+        uint128 amountIn = 100e6;
+        (address fundraisingTokenAddress,, address treasuryWallet,,, address owner,) =
+            factory.protocols(factoryTest.nonProfitOrg());
+        vm.stopPrank();
+        vm.startPrank(owner);
+        uint256 treasuryBalanceBeforeBalance = IERC20(fundraisingTokenAddress).balanceOf(treasuryWallet);
+        factory.setTreasuryPaused(owner, true);
+        vm.stopPrank();
+
+        vm.startPrank(USDC_WHALE);
+        // first buy
+        vm.roll(block.number + 10);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
+
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
+
+        uint256 treasuryBalanceAfterBalance = IERC20(fundraisingTokenAddress).balanceOf(treasuryWallet);
+
+        assertEq(treasuryBalanceBeforeBalance, treasuryBalanceAfterBalance);
+    }
+
+    function testCannotIncurTaxIfTreasuryIsMorethanMaximumHealthThreshold() public {
+        factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
+        vm.startPrank(USDC_WHALE);
+        key = factory.getPoolKey(factoryTest.nonProfitOrg());
+        uint128 amountIn = 10000000e6;
+        (address fundraisingTokenAddress,, address treasuryWallet,,,,) = factory.protocols(factoryTest.nonProfitOrg());
+
+        // first buy
+        vm.roll(block.number + 10);
+        vm.warp(block.timestamp + 2 hours);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
+
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
+
+        // check the remaining amount to make treasury wallet to reach max threshold and send from user account
+        // max threshold 30%
+
+        uint256 remainingAmount = 3e14 - IERC20(fundraisingTokenAddress).balanceOf(treasuryWallet);
+
+        IERC20(fundraisingTokenAddress).transfer(treasuryWallet, remainingAmount);
+
+        assertEq(IERC20(fundraisingTokenAddress).balanceOf(treasuryWallet), 3e14);
+        //second buy after cool down period passed
+        vm.warp(block.timestamp + 2 minutes);
+
+        uint256 _minAmountOut2 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
+
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut2), permit2, router, fundraisingTokenAddress);
+
+        // third buy after holding time passed
+        vm.warp(block.timestamp + 2 hours);
+
+        uint128 amountIn3 = 5000000e6;
+
+        uint256 _minAmountOut = _getMinAmountOut(key, amountIn3, bytes(""), qouter, slippage, fundraisingTokenAddress);
+
+        buyFundraisingToken(key, amountIn3, uint128(_minAmountOut), permit2, router, fundraisingTokenAddress);
+
+        assertEq(IERC20(fundraisingTokenAddress).balanceOf(treasuryWallet), 3e14);
+    }
+
+    function testIncurTaxOnSellingFundraisingToken() public {
+        factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
+        vm.startPrank(USDC_WHALE);
+        key = factory.getPoolKey(factoryTest.nonProfitOrg());
+        uint128 amountIn = 10000000e6;
+        (address fundraisingTokenAddress, address underlingCurrency,,,,,) =
+            factory.protocols(factoryTest.nonProfitOrg());
+
+        // first buy
+        vm.roll(block.number + 10);
+        vm.warp(block.timestamp + 2 hours);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
+
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
+
+        uint256 whaleUSDCBalanceBeforeBuyingUSDC = IERC20(underlingCurrency).balanceOf(USDC_WHALE);
+
+        sellFundraisingToken(key, amountIn, uint128(1), permit2, router, fundraisingTokenAddress);
+
+        uint256 whaleUSDCBalanceAfterBuyingUSDC = IERC20(underlingCurrency).balanceOf(USDC_WHALE);
+
+        assertGt(whaleUSDCBalanceAfterBuyingUSDC, whaleUSDCBalanceBeforeBuyingUSDC);
     }
 }

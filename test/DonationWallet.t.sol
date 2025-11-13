@@ -43,14 +43,9 @@ contract DonationWalletTest is Test {
             quoter,
             address(21),
             address(22),
-            donationWalletBeacon,
-            address(23)
+            donationWalletBeacon
         );
-        fundraisingToken = address(
-            new FundRaisingToken(
-                "FundRaisingToken", "FRT", 6, address(10), address(10), address(10), address(factory), 2e24
-            )
-        );
+        fundraisingToken = address(new FundRaisingToken("FundRaisingToken", "FRT", 6, address(10), address(10), 2e24));
         donationWallet.initialize(
             address(factory),
             nonProfitOrgAddress,
@@ -59,8 +54,7 @@ contract DonationWalletTest is Test {
             permit2,
             positionManager,
             quoter,
-            fundraisingToken,
-            registryAddress
+            fundraisingToken
         );
     }
 
@@ -68,15 +62,7 @@ contract DonationWalletTest is Test {
         donationWallet = DonationWallet(payable(address(new BeaconProxy(donationWalletBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
-            address(0),
-            nonProfitOrgAddress,
-            router,
-            poolManager,
-            permit2,
-            positionManager,
-            quoter,
-            fundraisingToken,
-            registryAddress
+            address(0), nonProfitOrgAddress, router, poolManager, permit2, positionManager, quoter, fundraisingToken
         );
     }
 
@@ -84,15 +70,7 @@ contract DonationWalletTest is Test {
         donationWallet = DonationWallet(payable(address(new BeaconProxy(donationWalletBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
-            factoryAddress,
-            address(0),
-            router,
-            poolManager,
-            permit2,
-            positionManager,
-            quoter,
-            fundraisingToken,
-            registryAddress
+            factoryAddress, address(0), router, poolManager, permit2, positionManager, quoter, fundraisingToken
         );
     }
 
@@ -107,8 +85,7 @@ contract DonationWalletTest is Test {
             permit2,
             positionManager,
             quoter,
-            fundraisingToken,
-            registryAddress
+            fundraisingToken
         );
     }
 
@@ -116,15 +93,7 @@ contract DonationWalletTest is Test {
         donationWallet = DonationWallet(payable(address(new BeaconProxy(donationWalletBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
-            factoryAddress,
-            nonProfitOrgAddress,
-            router,
-            address(0),
-            permit2,
-            positionManager,
-            quoter,
-            fundraisingToken,
-            registryAddress
+            factoryAddress, nonProfitOrgAddress, router, address(0), permit2, positionManager, quoter, fundraisingToken
         );
     }
 
@@ -139,8 +108,7 @@ contract DonationWalletTest is Test {
             address(0),
             positionManager,
             quoter,
-            fundraisingToken,
-            registryAddress
+            fundraisingToken
         );
     }
 
@@ -148,15 +116,7 @@ contract DonationWalletTest is Test {
         donationWallet = DonationWallet(payable(address(new BeaconProxy(donationWalletBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
-            factoryAddress,
-            nonProfitOrgAddress,
-            router,
-            poolManager,
-            permit2,
-            address(0),
-            quoter,
-            fundraisingToken,
-            registryAddress
+            factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, address(0), quoter, fundraisingToken
         );
     }
 
@@ -171,8 +131,7 @@ contract DonationWalletTest is Test {
             permit2,
             positionManager,
             address(0),
-            fundraisingToken,
-            registryAddress
+            fundraisingToken
         );
     }
 
@@ -180,30 +139,14 @@ contract DonationWalletTest is Test {
         donationWallet = DonationWallet(payable(address(new BeaconProxy(donationWalletBeacon, ""))));
         vm.expectRevert(Swap.ZeroAddress.selector);
         donationWallet.initialize(
-            factoryAddress,
-            nonProfitOrgAddress,
-            router,
-            poolManager,
-            permit2,
-            positionManager,
-            quoter,
-            address(0),
-            registryAddress
+            factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, positionManager, quoter, address(0)
         );
     }
 
     function testConstructorSetsStateVariables() public {
         donationWallet = DonationWallet(payable(address(new BeaconProxy(donationWalletBeacon, ""))));
         donationWallet.initialize(
-            factoryAddress,
-            nonProfitOrgAddress,
-            router,
-            poolManager,
-            permit2,
-            positionManager,
-            quoter,
-            fundraisingToken,
-            registryAddress
+            factoryAddress, nonProfitOrgAddress, router, poolManager, permit2, positionManager, quoter, fundraisingToken
         );
         assertEq(donationWallet.factoryAddress(), factoryAddress);
         assertEq(donationWallet.owner(), nonProfitOrgAddress);
@@ -240,9 +183,9 @@ contract DonationWalletTest is Test {
         factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
 
         Factory _factory = factoryTest.factory();
-        address _registryAddress = _factory.registryAddress();
+
         address nonProfigOrg = factoryTest.nonProfitOrg();
-        vm.startPrank(_registryAddress);
+
         (
             address fundraisingTokenAddress,
             address underlyingAddress,
@@ -252,6 +195,8 @@ contract DonationWalletTest is Test {
 
         TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));
         bytes memory performData = abi.encode(true, false);
+        address _registryAddress = treasuryWallet.registryAddress();
+        vm.startPrank(_registryAddress);
         treasuryWallet.performUpkeep(performData);
 
         uint256 donationBalance = IERC20(fundraisingTokenAddress).balanceOf(_donationWallet);
@@ -270,9 +215,9 @@ contract DonationWalletTest is Test {
         factoryTest.testCreatePoolOwnerCanCreatePoolUsingEtherAsUnderlyingToken();
 
         Factory _factory = factoryTest.factory();
-        address _registryAddress = _factory.registryAddress();
+
         address nonProfigOrg = factoryTest.nonProfitOrg2();
-        vm.startPrank(_registryAddress);
+
         (
             address fundraisingTokenAddress,
             address underlyingAddress,
@@ -281,6 +226,8 @@ contract DonationWalletTest is Test {
         ) = _factory.protocols(nonProfigOrg);
         assertEq(underlyingAddress, address(0));
         TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));
+        address _registryAddress = treasuryWallet.registryAddress();
+        vm.startPrank(_registryAddress);
         bytes memory performData = abi.encode(true, false);
         treasuryWallet.performUpkeep(performData);
 
@@ -296,5 +243,17 @@ contract DonationWalletTest is Test {
     function testReceive() public {
         vm.deal(address(donationWallet), 1 ether);
         assertEq(address(donationWallet).balance, 1 ether);
+    }
+
+    function testSetRegistryAddressOnlyCalledByFactory() public {
+        vm.expectRevert(DonationWallet.NotFactory.selector);
+        donationWallet.setRegistry(address(20));
+    }
+
+    function testSetRegistryAddressSetRegistryAddressCorrectly() public {
+        vm.startPrank(address(factory));
+        donationWallet.setRegistry(address(20));
+        assertEq(donationWallet.registryAddress(), address(20));
+        vm.stopPrank();
     }
 }

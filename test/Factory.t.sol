@@ -65,7 +65,6 @@ contract FactoryTest is Test {
         address factoryImplementation = address(new Factory());
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             router,
@@ -89,25 +88,6 @@ contract FactoryTest is Test {
         Factory factoryImplementation = new Factory();
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         factoryImplementation.initialize(
-            registryAddress,
-            poolManager,
-            positionManager,
-            router,
-            permit2,
-            quoter,
-            admin,
-            treasuryWalletBeacon,
-            donationWalletBeacon,
-            stateView
-        );
-    }
-
-    function testInitializeRevertsOnZeroRegistryAddress() public {
-        address factoryImplementation = address(new Factory());
-        factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
-        vm.expectRevert(Factory.ZeroAddress.selector);
-        factory.initialize(
-            address(0),
             poolManager,
             positionManager,
             router,
@@ -125,7 +105,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             address(0),
             positionManager,
             router,
@@ -143,7 +122,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             address(0),
             router,
@@ -161,16 +139,7 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
-            poolManager,
-            positionManager,
-            router,
-            permit2,
-            quoter,
-            admin,
-            address(0),
-            donationWalletBeacon,
-            stateView
+            poolManager, positionManager, router, permit2, quoter, admin, address(0), donationWalletBeacon, stateView
         );
     }
 
@@ -179,16 +148,7 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
-            poolManager,
-            positionManager,
-            router,
-            permit2,
-            quoter,
-            admin,
-            treasuryWalletBeacon,
-            address(0),
-            stateView
+            poolManager, positionManager, router, permit2, quoter, admin, treasuryWalletBeacon, address(0), stateView
         );
     }
 
@@ -197,7 +157,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             address(0),
@@ -215,7 +174,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             router,
@@ -233,7 +191,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             router,
@@ -251,7 +208,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             router,
@@ -269,7 +225,6 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            registryAddress,
             poolManager,
             positionManager,
             router,
@@ -283,7 +238,6 @@ contract FactoryTest is Test {
     }
 
     function testInitializeSetsStateVariables() public view {
-        assertEq(factory.registryAddress(), registryAddress);
         assertEq(factory.poolManager(), poolManager);
         assertEq(factory.positionManager(), positionManager);
         assertEq(factory.router(), router);
@@ -349,8 +303,6 @@ contract FactoryTest is Test {
         assertEq(token.balanceOf(owner), 750_000_000 * 10 ** token.decimals());
         assertEq(token.lpManager(), factory.owner());
         assertEq(token.treasuryAddress(), treasuryWallet);
-        assertEq(token.donationAddress(), donationWallet);
-        assertEq(token.factoryAddress(), address(factory));
 
         DonationWallet dw = DonationWallet(payable(donationWallet));
         assertEq(dw.owner(), address(30));
@@ -363,7 +315,6 @@ contract FactoryTest is Test {
         TreasuryWallet tw = TreasuryWallet(payable(treasuryWallet));
         assertEq(tw.donationAddress(), donationWallet);
         assertEq(tw.factoryAddress(), address(factory));
-        assertEq(tw.registryAddress(), registryAddress);
         assertEq(address(tw.router()), router);
         assertEq(address(tw.poolManager()), poolManager);
         assertEq(address(tw.permit2()), permit2);
@@ -446,7 +397,7 @@ contract FactoryTest is Test {
         factory.createPool(nonProfitOrg3, amount0, amount1);
         assertApproxEqAbs(IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager), amount1, tolerance);
         assertEq(IERC20Metadata(usdc).balanceOf(address(factory)), 0);
-        PoolKey memory key = factory.getPoolKey(nonProfitOrg3);
+        // PoolKey memory key = factory.getPoolKey(nonProfitOrg3);
         // assertEq(Currency.unwrap(key.currency0), _fundraisingTokenAddress);
         //  assertEq(Currency.unwrap(key.currency1), usdc);
         vm.stopPrank();
@@ -484,24 +435,29 @@ contract FactoryTest is Test {
     function testSwapFundraisingToken() public {
         testCreatePoolOwnerCanCreateAPoolOnUniswap();
 
-        vm.startPrank(registryAddress);
+        vm.startPrank(address(factory));
 
         // transfer some amount to donation wallet
         vm.roll(block.number + 10);
         TreasuryWallet treasury = TreasuryWallet(payable(treasuryWalletAddress));
-
+        treasury.setRegistry(registryAddress);
         bytes memory performData = abi.encode(true, false);
-
+        vm.stopPrank();
+        vm.startPrank(registryAddress);
         treasury.performUpkeep(performData);
 
         assert(IERC20Metadata(fundraisingTokenAddress).balanceOf(donationWalletAddress) > 0);
 
         assert(IERC20Metadata(usdc).balanceOf(donationWalletAddress) == 0);
+        vm.stopPrank();
 
+        vm.startPrank(address(factory));
         // swap fundraising token to usdc
 
         DonationWallet donation = DonationWallet(payable(donationWalletAddress));
-
+        donation.setRegistry(registryAddress);
+        vm.stopPrank();
+        vm.startPrank(registryAddress);
         donation.performUpkeep(bytes(""));
 
         assert(IERC20Metadata(usdc).balanceOf(nonProfitOrg) > 0);
@@ -596,5 +552,79 @@ contract FactoryTest is Test {
             treasuryBalanceBeforeWithdraw,
             "Non profit org should receive the withdrawn amount"
         );
+    }
+
+    function testSetRegistryAddressForTreasuryRevertsOnZeroNonProfitOrgAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.setRegistryForTreasuryWallet(address(0), registryAddress);
+    }
+
+    function testSetRegistryAddressForTreasuryRevertsOnZeroRegistryAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.setRegistryForTreasuryWallet(address(20), address(0));
+    }
+
+    function testSetRegistryAddressForTreasuryRevertsIfNotCalledbyOwner() public {
+        vm.prank(address(0x10));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
+        factory.setRegistryForTreasuryWallet(address(20), registryAddress);
+    }
+
+    function testSetRegistryAddressForTreasuryRevertsIfVaultIsNotCreated() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Factory.ProtocolNotAvailable.selector);
+        factory.setRegistryForTreasuryWallet(address(20), registryAddress);
+    }
+
+    function testSetRegistryAddressForTreasuryRevertsIfAlreadySet() public {
+        vm.startPrank(owner);
+        factory.setRegistryForTreasuryWallet(nonProfitOrg, registryAddress);
+        vm.expectRevert(Factory.RegistryAlreadySet.selector);
+        factory.setRegistryForTreasuryWallet(nonProfitOrg, registryAddress);
+    }
+
+    function testSetRegistryAddressForTreasurySetRegistryAddressForTheGivenTreasuryAndEmitsEvent() public {
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit Factory.RegistryAddressForTreasurySet(treasuryWalletAddress, registryAddress);
+        factory.setRegistryForTreasuryWallet(nonProfitOrg, registryAddress);
+        assertEq(TreasuryWallet(payable(treasuryWalletAddress)).registryAddress(), registryAddress);
+    }
+
+    function testSetRegistryAddressForDonationRevertsOnZeroNonProfitOrgAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.setRegistryForDonationWallet(address(0), registryAddress);
+    }
+
+    function testSetRegistryAddressForDonationRevertsOnZeroRegistryAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.setRegistryForDonationWallet(address(20), address(0));
+    }
+
+    function testSetRegistryAddressForDonationRevertsIfNotCalledbyOwner() public {
+        vm.prank(address(0x10));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
+        factory.setRegistryForDonationWallet(address(20), registryAddress);
+    }
+
+    function testSetRegistryAddressForDonationRevertsIfVaultIsNotCreated() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Factory.ProtocolNotAvailable.selector);
+        factory.setRegistryForDonationWallet(address(20), registryAddress);
+    }
+
+    function testSetRegistryAddressForDonationRevertsIfAlreadySet() public {
+        vm.startPrank(owner);
+        factory.setRegistryForDonationWallet(nonProfitOrg, registryAddress);
+        vm.expectRevert(Factory.RegistryAlreadySet.selector);
+        factory.setRegistryForDonationWallet(nonProfitOrg, registryAddress);
+    }
+
+    function testSetRegistryAddressForDonationSetRegistryAddressForTheGivenTreasuryAndEmitsEvent() public {
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit Factory.RegistryAddressForDonationSet(donationWalletAddress, registryAddress);
+        factory.setRegistryForDonationWallet(nonProfitOrg, registryAddress);
+        assertEq(DonationWallet(payable(donationWalletAddress)).registryAddress(), registryAddress);
     }
 }

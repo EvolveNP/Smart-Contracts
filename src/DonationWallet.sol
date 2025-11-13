@@ -15,7 +15,6 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Swap} from "./abstracts/Swap.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {console} from "forge-std/console.sol";
 
 contract DonationWallet is Swap, AutomationCompatibleInterface {
     using StateLibrary for IPoolManager;
@@ -31,7 +30,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     IERC20 public fundraisingTokenAddress; // Address of the FundRaisingToken contract
     address public owner; // Owner of the DonationWallet
     address public factoryAddress; // The address of the factory contract
-    address registryAddress; // Address of the registry contract
+    address public registryAddress; // Address of the registry contract
 
     /**
      * @notice This event is used to log successful transfers to non-profit organizations.
@@ -50,6 +49,11 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
 
     modifier onlyRegistry() {
         if (msg.sender != registryAddress) revert NotRegistry();
+        _;
+    }
+
+    modifier onlyFactory() {
+        if (msg.sender != factoryAddress) revert NotFactory();
         _;
     }
 
@@ -73,20 +77,18 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         address _permit2,
         address _positionManager,
         address _qouter,
-        address _fundraisingToken,
-        address _registryAddress
+        address _fundraisingToken
     ) external initializer nonZeroAddress(_factoryAddress) nonZeroAddress(_owner) nonZeroAddress(_fundraisingToken) {
         __init(_router, _poolManager, _permit2, _positionManager, _qouter);
         owner = _owner;
         factoryAddress = _factoryAddress;
         fundraisingTokenAddress = IERC20(_fundraisingToken);
-        registryAddress = _registryAddress;
     }
 
     /**
      * See {AutomationCompatibleInterace - checkUpKeep}
      */
-    function checkUpkeep(bytes calldata checkData) external view returns (bool upkeepNeeded, bytes memory performData) {
+    function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = IERC20(fundraisingTokenAddress).balanceOf(address(this)) > 0;
 
         performData = bytes("");
@@ -95,8 +97,12 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     /**
      * See {AutomationCompatibleInterace - performUpkeep}
      */
-    function performUpkeep(bytes calldata performData) external onlyRegistry {
+    function performUpkeep(bytes calldata) external onlyRegistry {
         swapFundraisingToken();
+    }
+
+    function setRegistry(address _registryAddress) external onlyFactory {
+        registryAddress = _registryAddress;
     }
 
     /**
