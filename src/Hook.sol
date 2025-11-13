@@ -28,7 +28,6 @@ contract FundraisingTokenHook is BaseHook {
 
     address public immutable fundraisingTokenAddress; // The address of the fundraising token
     address public immutable treasuryAddress;
-    address public immutable donationAddress;
     uint256 public constant maximumThreshold = 30e16; // The maximum threshold for the liquidity pool 30% = 30e16
 
     mapping(address => uint256) public lastBuyTimestamp; // The last buy timestamp for each address
@@ -43,17 +42,13 @@ contract FundraisingTokenHook is BaseHook {
      * @param _fundraisingTokenAddress The address of the fundraising token.
      * @param _treasuryAddress The address where fees will be sent (immutable).
      */
-    constructor(
-        address _poolManager,
-        address _fundraisingTokenAddress,
-        address _treasuryAddress,
-        address _donationAddress
-    ) BaseHook(IPoolManager(_poolManager)) {
+    constructor(address _poolManager, address _fundraisingTokenAddress, address _treasuryAddress)
+        BaseHook(IPoolManager(_poolManager))
+    {
         fundraisingTokenAddress = _fundraisingTokenAddress;
         launchTimestamp = block.timestamp;
         launchBlock = block.number;
         treasuryAddress = _treasuryAddress;
-        donationAddress = _donationAddress;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
@@ -110,13 +105,12 @@ contract FundraisingTokenHook is BaseHook {
     /**
      * @notice Called after a swap — enforces restrictions on buys and collects fee for buys.
      */
-    function _afterSwap(
-        address sender,
-        PoolKey calldata key,
-        SwapParams calldata params,
-        BalanceDelta delta,
-        bytes calldata
-    ) internal override returns (bytes4, int128) {
+    function _afterSwap(address, PoolKey calldata key, SwapParams calldata params, BalanceDelta delta, bytes calldata)
+        internal
+        override
+        returns (bytes4, int128)
+    {
+        address caller = tx.origin;
         address currency0 = Currency.unwrap(key.currency0);
 
         bool isFundraisingTokenIsCurrencyZero = currency0 == fundraisingTokenAddress;
@@ -126,8 +120,8 @@ contract FundraisingTokenHook is BaseHook {
             || (!isFundraisingTokenIsCurrencyZero && params.zeroForOne);
 
         uint256 feeAmount;
-        bool isTaxCutEnabled = checkIfTaxIncurred(sender);
-        if (isBuying && isTaxCutEnabled) {
+        bool isTaxCutEnabled = checkIfTaxIncurred(caller);
+        if (isBuying) {
             int256 _amountOut = params.zeroForOne ? delta.amount1() : delta.amount0();
 
             if (_amountOut <= 0) {
@@ -135,15 +129,17 @@ contract FundraisingTokenHook is BaseHook {
             }
 
             // use provided sender (not tx.origin)
-            isTransferBlocked(sender, _amountOut);
+            isTransferBlocked(caller, _amountOut);
 
-            if (block.timestamp < launchTimestamp + timeToHold) lastBuyTimestamp[sender] = block.timestamp;
+            if (block.timestamp < launchTimestamp + timeToHold) lastBuyTimestamp[caller] = block.timestamp;
+            
+            if (isTaxCutEnabled) {
+                feeAmount = (uint256(_amountOut) * TAX_FEE_PERCENTAGE) / TAX_FEE_DENOMINATOR;
 
-            feeAmount = (uint256(_amountOut) * TAX_FEE_PERCENTAGE) / TAX_FEE_DENOMINATOR;
-
-            if (feeAmount >= ((uint256(1) << 127) - 1)) revert FeeToLarge();
-            // sends the fee to treasury wallet
-            poolManager.take(Currency.wrap(fundraisingTokenAddress), treasuryAddress, feeAmount);
+                if (feeAmount >= ((uint256(1) << 127) - 1)) revert FeeToLarge();
+                // sends the fee to treasury wallet
+                poolManager.take(Currency.wrap(fundraisingTokenAddress), treasuryAddress, feeAmount);
+            }
         }
         return (BaseHook.afterSwap.selector, int128(int256(feeAmount)));
     }
@@ -183,6 +179,6 @@ contract FundraisingTokenHook is BaseHook {
 
     function checkIfTaxIncurred(address sender) internal view returns (bool) {
         return !ITreasury(treasuryAddress).isTreasuryPaused() && (getTreasuryBalanceInPerecent() < maximumThreshold)
-            && sender != treasuryAddress && sender != donationAddress;
+            && sender != ITreasury(treasuryAddress).registryAddress();
     }
 }

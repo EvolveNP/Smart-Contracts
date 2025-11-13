@@ -64,3 +64,13 @@ $ forge --help
 $ anvil --help
 $ cast --help
 ```
+
+forge verify-contract 0x9f8C2676AD108b02Ab4eDFa48bEAba47D0947b4f src/FundRaisingToken.sol:FundRaisingToken --etherscan-api-key $ETHERSCAN_API_KEY --chain sepolia
+
+forge script --chain sepolia script/Factory.s.sol --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify -vvvv
+
+forge script --chain sepolia script/TreasuryWallet.s.sol --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify -vvvv
+
+forge script --chain sepolia script/DonationWallet.s.sol --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify -vvvv
+
+source.env

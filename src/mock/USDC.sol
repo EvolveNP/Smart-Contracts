@@ -8,7 +8,7 @@ contract USDC is ERC20 {
 
     function test() public {}
 
-    constructor(uint8 decimals_) ERC20("USD Coin", "USDC") {
+    constructor(uint8 decimals_) ERC20("Evolve NP USD Coin", "USDC") {
         _decimals = decimals_;
         _mint(msg.sender, 1_000_000 * 10 ** decimals());
     }

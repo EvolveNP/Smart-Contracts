@@ -44,7 +44,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
     uint256 constant minimumHealthThreshhold = 5e16; // The minimum threshold for transferring funds
     uint256 constant minimumHealthThreshholdToAddLP = 10e15; // The minimum threshold to adjust health of the liquidity pool
-    uint256 public constant transferInterval = 30 days; // The interval at which funds transferred to donation wallet
+    uint256 public constant transferInterval = 30 minutes; // The interval at which funds transferred to donation wallet
     uint256 public constant minLPHealthThreshhold = 5e16; // The health threshold
     uint256 internal constant MULTIPLIER = 1e18;
     int24 internal tickSpacing;
@@ -221,6 +221,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         amountToTransferAndBurn = (fundraisingToken.totalSupply() * 2e16) / MULTIPLIER; // 2% of total supply
         fundraisingToken.transfer(donationAddress, amountToTransferAndBurn);
         fundraisingToken.burn(amountToTransferAndBurn);
+        lastTransferTimestamp = block.timestamp;
         emit FundTransferredToDonationWallet(amountToTransferAndBurn);
     }
 

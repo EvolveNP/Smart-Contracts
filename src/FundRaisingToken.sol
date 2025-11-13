@@ -12,7 +12,6 @@ contract FundRaisingToken is ERC20 {
     error ZeroAddress();
     error ZeroAmount();
     error OnlyTreasury();
-    error TransferBlocked();
 
     /**
      * State Variables
