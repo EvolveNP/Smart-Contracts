@@ -128,11 +128,16 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      */
     function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData) {
         uint256 transferDate = lastTransferTimestamp + transferInterval;
+
         uint256 lpCurrentThreshold = getThreshold(address(poolManager));
+
         bool initiateTransfer = ((block.timestamp >= transferDate) && isTransferAllowed());
+
         bool initiateAddLiqudity = (minLPHealthThreshhold >= lpCurrentThreshold)
             && (getThreshold(address(this)) > minimumHealthThreshholdToAddLP);
+
         bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
+
         upkeepNeeded = !emergencyPauseEnabled && (initiateTransfer || initiateAddLiqudity);
 
         if (upkeepNeeded) {
@@ -278,9 +283,12 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
      */
     function isTransferAllowed() internal view returns (bool) {
         uint256 treasuryBalance = fundraisingToken.balanceOf(address(this));
+
         uint256 totalSupply = fundraisingToken.totalSupply();
+
         uint256 currentThreshold = ((treasuryBalance * MULTIPLIER) / totalSupply);
-        if (currentThreshold >= minimumHealthThreshhold) {
+
+        if (currentThreshold > minimumHealthThreshhold) {
             return true;
         } else {
             return false;
