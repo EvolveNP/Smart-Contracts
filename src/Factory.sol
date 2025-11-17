@@ -25,9 +25,10 @@ import {FundraisingTokenHook} from "./Hook.sol";
 
 /**
  * @title Factory Contract
- * @notice This contract serves as a factory for deploying and managing other contracts.
- * @dev Inherits from Ownable2StepUpgradeable to provide two-step ownership transfer functionality.
- * @custom:netspec The Factory contract enables the creation and management of contract instances, with secure ownership transfer mechanisms.
+ * @notice This contract serves as a factory for deploying and managing fundraising vaults and liquidity pools for non-profit organizations.
+ * @dev Inherits from Ownable2StepUpgradeable for secure ownership transfer.
+ *      Manages deployment of DonationWallet, TreasuryWallet, and FundRaisingToken contracts,
+ *      handles pool creation on Uniswap V4, emergency pause features, and registry management.
  */
 contract Factory is Ownable2StepUpgradeable {
     /**
@@ -58,10 +59,19 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     uint256 public constant totalSupply = 1e9; // the total supply of fundraising token
-    mapping(address => FundraisingProtocol) public protocols; // non profit org wallet address => protocol
 
-    // uniswap constants
-    mapping(address => PoolKey) internal poolKeys; // lp address => pool key:  store pool keys for easy access
+    /**
+     * @notice Mapping storing fundraising protocol details by non-profit owner address.
+     * @dev Contains fundraising token, wallets, hook, owner, and LP creation state.
+     */
+    mapping(address => FundraisingProtocol) public protocols;
+
+    /**
+     * @notice Mapping storing Uniswap pool keys by owner.
+     * @dev Used to quickly access pool details for a given non-profit owner.
+     */
+    mapping(address => PoolKey) internal poolKeys;
+
     address public router; // The address of the uniswap universal router
     address public permit2; // The address of the uniswap permit2 contract
     int24 public constant defaultTickSpacing = 60; // default tick spacing for the pool
@@ -111,9 +121,32 @@ contract Factory is Ownable2StepUpgradeable {
      */
     event DonationEmergencyPauseSet(address owner, address donationWallet, bool pause);
 
+    /**
+     * @notice Emitted when emergency pause state is toggled for all treasury and donation wallets in the protocol.
+     * @param pause The new global pause state (`true` if paused, `false` if unpaused).
+     */
     event AllTreasuriesPaused(bool pause);
+
+    /**
+     * @notice Emitted when an emergency withdrawal is performed from a treasury wallet.
+     * @param treasuryWallet The treasury wallet address from which funds were withdrawn.
+     * @param owner The nonprofit organization owner who initiated the emergency withdrawal.
+     * @param amount The amount of funds withdrawn in the emergency.
+     */
     event EmergencyWithdrawn(address treasuryWallet, address owner, uint256 amount);
+
+    /**
+     * @notice Emitted when the registry contract address is updated for a specific treasury wallet.
+     * @param treasuryWallet The treasury wallet contract address whose registry was updated.
+     * @param registryAddress The new registry contract address set for the treasury wallet.
+     */
     event RegistryAddressForTreasurySet(address treasuryWallet, address registryAddress);
+
+    /**
+     * @notice Emitted when the registry contract address is updated for a specific donation wallet.
+     * @param donationWallet The donation wallet contract address whose registry was updated.
+     * @param registryAddress The new registry contract address set for the donation wallet.
+     */
     event RegistryAddressForDonationSet(address donationWallet, address registryAddress);
 
     /**
@@ -138,6 +171,10 @@ contract Factory is Ownable2StepUpgradeable {
         _;
     }
 
+    /**
+     * @notice Modifier restricting access to admin-only functions.
+     * @dev Reverts if the caller is not the configured admin address.
+     */
     modifier onlyAdmin() {
         if (admin != msg.sender) revert NotAdmin();
         _;
@@ -279,25 +316,38 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Creates a Uniswap V4 liquidity pool for a fundraising token and an underlying currency.
+     * @notice Creates a Uniswap V4 liquidity pool for a fundraising token and an underlying asset.
      * @dev Only callable by the factory contract owner.
-     *      The function handles token transfers, pool initialization, liquidity provisioning,
-     *      and hook deployment for swap callbacks.
-     *      Reverts if the fundraising vault or treasury wallet does not exist,
-     *      or if the liquidity pool has already been created.
-     *      The `_sqrtPriceX96` is calculated as floor(sqrt(token1/token0) * 2^96).
+     *      - Handles ERC20 or native asset transfers, pool initialization, liquidity provisioning,
+     *        and deployment of a custom hook for swap-based donation processing.
+     *      - Requires that the fundraising protocol is already registered for `_owner`.
+     *      - Reverts if the fundraising vault or treasury wallet is missing,
+     *        or if a liquidity pool for the owner has already been created.
+     *      - The `_sqrtPriceX96` value is derived using Uniswap's Q96 price encoding formula
+     *        via `encodeSqrtPriceX96(amount1, amount0)`.
      *
-     * @param _owner The address of the non-profit organization owner associated with the pool.
-     * @param _amount0 The amount representing the price or quantity of currency 0 (underlying asset).
-     * @param _amount1 The amount representing the price or quantity of currency 1 (fundraising token).
+     * @param _owner The address representing the non-profit organization owner.
+     * @param _amount0 The liquidity amount for token0 (can be native ETH if `address(0)` is underlying).
+     * @param _amount1 The liquidity amount for token1 (fundraising token).
+     * @param _salt The deterministic CREATE2 salt for deploying the FundraisingTokenHook,
+     *             typically obtained from a `findSalt` helper function.
      *
-     * @custom:security This function requires approval for ERC20 transfers by the caller.
-     *                  The caller must ensure sufficient balances and allowances are set prior to calling.
-     *                  The owner must be authorized and the vault properly initialized.
+     * @custom:security Caller must ensure:
+     *                  - ERC20 approvals are granted to this contract for both tokens.
+     *                  - Sufficient balances are available.
+     *                  - The salt is pre-mined for a valid hook deployment address
+     *                    compatible with Uniswap V4 hook flag requirements.
      *
-     * @custom:event Emits a {LiquidityPoolCreated} event with the underlying and fundraising token addresses and the owner.
+     * @custom:effects
+     *      - Transfers liquidity assets into the contract.
+     *      - Deploys hook using CREATE2 for deterministic pool addressing.
+     *      - Initializes the pool and mints initial liquidity.
+     *      - Marks protocol as LP-created and stores hook and pool metadata.
+     *
+     * @custom:event Emits {LiquidityPoolCreated} with underlying token, fundraising token, and owner.
      */
-    function createPool(address _owner, uint256 _amount0, uint256 _amount1)
+
+    function createPool(address _owner, uint256 _amount0, uint256 _amount1, bytes32 _salt)
         external
         payable
         nonZeroAddress(_owner)
@@ -317,28 +367,32 @@ contract Factory is Ownable2StepUpgradeable {
 
         address _currency0 = _protocol.underlyingAddress;
         address _currency1 = _protocol.fundraisingToken;
+        uint256 amount0 = _amount0;
+        uint256 amount1 = _amount1;
 
         if (_currency0 != address(0)) {
-            IERC20(_currency0).transferFrom(msg.sender, address(this), _amount0);
+            IERC20(_currency0).transferFrom(msg.sender, address(this), amount0);
         } else {
-            if (_amount0 != msg.value) revert InvalidAmount0();
+            if (amount0 != msg.value) revert InvalidAmount0();
         }
 
-        IERC20(_currency1).transferFrom(msg.sender, address(this), _amount1);
+        IERC20(_currency1).transferFrom(msg.sender, address(this), amount1);
 
         if (_currency0 > _currency1) {
             (_currency0, _currency1) = (_currency1, _currency0);
-            (_amount0, _amount1) = (_amount1, _amount0);
+            (amount0, amount1) = (amount1, amount0);
         }
 
-        uint160 _startingPrice = Helper.encodeSqrtPriceX96(_amount1, _amount0);
+        uint160 _startingPrice = Helper.encodeSqrtPriceX96(amount1, amount0);
 
         // wrap currencies
         Currency currency0 = Currency.wrap(_currency0);
         Currency currency1 = Currency.wrap(_currency1);
 
         // deploy hook
-        IHooks hook = deployHook(_protocol.fundraisingToken, _protocol.treasuryWallet, _protocol.donationWallet);
+        IHooks hook = new FundraisingTokenHook{salt: _salt}(
+            poolManager, _protocol.fundraisingToken, _protocol.treasuryWallet, _protocol.donationWallet
+        );
 
         // transfer assets to this contract;
 
@@ -346,19 +400,21 @@ contract Factory is Ownable2StepUpgradeable {
             PoolKey({currency0: currency0, currency1: currency1, fee: 0, tickSpacing: defaultTickSpacing, hooks: hook});
 
         params[0] = abi.encodeWithSelector(IPoolInitializer_v4.initializePool.selector, pool, _startingPrice);
-        params[1] = getModifyLiqiuidityParams(pool, _amount0, _amount1, _startingPrice);
+        params[1] = getModifyLiqiuidityParams(pool, amount0, amount1, _startingPrice);
 
         uint256 deadline = block.timestamp + 1000;
-        uint256 valueToPass = pool.currency0.isAddressZero() ? _amount0 : pool.currency1.isAddressZero() ? _amount1 : 0;
+
+        // Eth is always currency 0 as it is zero address
+        uint256 valueToPass = pool.currency0.isAddressZero() ? amount0 : 0;
 
         // ether is always currency0
         if (!pool.currency0.isAddressZero()) {
-            IERC20(_currency0).approve(address(permit2), _amount0);
-            IPermit2(permit2).approve(_currency0, positionManager, uint160(_amount0), uint48(deadline));
+            IERC20(_currency0).approve(address(permit2), amount0);
+            IPermit2(permit2).approve(_currency0, positionManager, uint160(amount0), uint48(deadline));
         }
 
-        IERC20(_currency1).approve(address(permit2), _amount1);
-        IPermit2(permit2).approve(_currency1, positionManager, uint160(_amount1), uint48(deadline));
+        IERC20(_currency1).approve(address(permit2), amount1);
+        IPermit2(permit2).approve(_currency1, positionManager, uint160(amount1), uint48(deadline));
 
         _protocol.isLPCreated = true;
         _protocol.hook = address(hook);
@@ -563,33 +619,36 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Deploys a new `FundraisingTokenHook` contract instance for a given fundraising token and treasury.
-     * @dev This function deterministically deploys a hook contract with the correct Uniswap V4 hook flags.
-     *      It mines a unique salt to ensure the deployed address matches the expected flag configuration.
-     *      The hook is used to intercept swap operations for custom logic related to the fundraising protocol.
+     * @notice Computes and returns a CREATE2 salt that will produce a valid hook deployment address
+     *         matching the required Uniswap V4 hook flag bitmask for a specific non-profit protocol owner.
      *
-     * @param _fundraisingToken The address of the fundraising token associated with this hook.
-     * @param _treasuryAddress The address of the treasury wallet that will receive swap proceeds or fees.
-     * @return hook The deployed `IHooks` contract instance configured for the given fundraising token and treasury.
+     * @dev This function performs an off-chain-compatible deterministic salt search using
+     *      `HookMiner.find`. It does NOT deploy the hook contract — the returned salt must be supplied to
+     *       the deployment function that performs the actual CREATE2 contract creation.
      *
-     * @custom:security This function is internal and should only be called from controlled factory logic.
-     * @custom:tech Uses `HookMiner.find()` to compute a valid salt ensuring the deployed address conforms
-     *              to required Uniswap V4 hook flag bits.
+     *      The function reverts if no fundraising protocol has been initialized for the given owner.
+     *
+     * @param _nonProfitOrgOwner The address of the owner whose fundraising protocol configuration is used
+     *                           to build constructor arguments for salt mining.
+     *
+     * @return salt The computed CREATE2 salt that results in a hook address whose lower bits satisfy
+     *              the required Uniswap V4 hook flag constraints.
      */
-    function deployHook(address _fundraisingToken, address _treasuryAddress, address _donationAddress)
-        internal
-        returns (IHooks hook)
-    {
+    function findSalt(address _nonProfitOrgOwner) external view nonZeroAddress(_nonProfitOrgOwner) returns (bytes32) {
         uint160 flags = uint160(
             Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
                 | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         );
 
+        FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
+
+        if (protocol.fundraisingToken == address(0)) revert ProtocolNotAvailable();
+
         // Mine a salt that will produce a hook address with the correct flags
-        bytes memory constructorArgs = abi.encode(poolManager, _fundraisingToken, _treasuryAddress, _donationAddress);
+        bytes memory constructorArgs =
+            abi.encode(poolManager, protocol.fundraisingToken, protocol.treasuryWallet, protocol.donationWallet);
         (, bytes32 salt) =
             HookMiner.find(address(this), flags, type(FundraisingTokenHook).creationCode, constructorArgs);
-
-        hook = new FundraisingTokenHook{salt: salt}(poolManager, _fundraisingToken, _treasuryAddress, _donationAddress);
+        return salt;
     }
 }

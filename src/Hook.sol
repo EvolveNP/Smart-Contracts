@@ -13,7 +13,18 @@ import {BeforeSwapDelta, toBeforeSwapDelta} from "@uniswap/v4-core/src/types/Bef
 import {ITreasury} from "./interfaces/ITreasury.sol";
 import {IDonationWallet} from "./interfaces/IDonationWallet.sol";
 
+/**
+ * @title FundraisingTokenHook
+ * @notice Implements Uniswap V4 hooks to enforce launch protection, cooldowns, buy limits, and swap taxation
+ *         for a fundraising token.
+ * @dev
+ * Integrates with the Uniswap V4 PoolManager, applying buy/sell restrictions and tax fees that are routed
+ * to a treasury address. Supports launch protection with block and time based holds and per-wallet cooldowns.
+ */
 contract FundraisingTokenHook is BaseHook {
+    /**
+     * @notice Errors thrown by the contract
+     */
     error TransactionNotAllowed();
     error BlockToHoldNotPassed();
     error AmountGreaterThanMaxBuyAmount();
@@ -23,9 +34,9 @@ contract FundraisingTokenHook is BaseHook {
     uint256 internal launchTimestamp; // The timestamp when the token was launched
     uint256 internal constant perWalletCoolDownPeriod = 1 minutes;
     uint256 internal constant maxBuySize = 333e13; // 0.333% of total supply (scaled by 1e18)
-    uint256 internal constant blocksToHold = 10;
-    uint256 internal constant timeToHold = 1 hours;
-    uint256 internal launchBlock; // The block number when the token was launched
+    uint256 internal constant blocksToHold = 10; // Number of blocks after launch during which transfers are restricted
+    uint256 internal constant timeToHold = 1 hours; // Number of seconds after launch during which special hold rules apply
+    uint256 internal launchBlock; // Block number when the fundraising token was launched
 
     address public immutable fundraisingTokenAddress; // The address of the fundraising token
     address public immutable treasuryAddress; // The address of the treasury wallet address
@@ -36,7 +47,7 @@ contract FundraisingTokenHook is BaseHook {
 
     // 2% expressed with 18-decimal denominator
     uint256 public constant TAX_FEE_PERCENTAGE = 2e16; // 0.02 * 1e18 = 2e16 (2%)
-    uint256 public constant TAX_FEE_DENOMINATOR = 1e18;
+    uint256 public constant TAX_FEE_DENOMINATOR = 1e18; // Denominator for tax fee calculation (1e18)
 
     /**
      * @notice Initializes the FundraisingTokenHook contract with the PoolManager and core protocol addresses.

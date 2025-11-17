@@ -325,21 +325,21 @@ contract FactoryTest is Test {
     function testCreateCannotCreatePoolWithZeroOwnerAddress() public {
         vm.prank(owner);
         vm.expectRevert(Factory.ZeroAddress.selector);
-        factory.createPool(address(0), 1, 1);
+        factory.createPool(address(0), 1, 1, 0x00);
         vm.stopPrank();
     }
 
     function testCreateCannotCreatePoolWithZeroAmount0() public {
         vm.prank(owner);
         vm.expectRevert(Factory.ZeroAmount.selector);
-        factory.createPool(nonProfitOrg, 0, 1);
+        factory.createPool(nonProfitOrg, 0, 1, 0x00);
         vm.stopPrank();
     }
 
     function testCreateCannotCreatePoolWithZeroAmount1() public {
         vm.prank(owner);
         vm.expectRevert(Factory.ZeroAmount.selector);
-        factory.createPool(nonProfitOrg, 1, 0);
+        factory.createPool(nonProfitOrg, 1, 0, 0x0);
         vm.stopPrank();
     }
 
@@ -352,21 +352,21 @@ contract FactoryTest is Test {
         vm.startPrank(owner);
         IERC20Metadata(fundraisingTokenAddress2).approve(address(factory), amount1);
         vm.expectRevert(Factory.InvalidAmount0.selector);
-        factory.createPool(nonProfitOrg2, amount0, amount1);
+        factory.createPool(nonProfitOrg2, amount0, amount1, 0x0);
         vm.stopPrank();
     }
 
     function testCreatePoolCannotCreatePoolIfVaultNotCreated() public {
         vm.prank(owner);
         vm.expectRevert(Factory.FundraisingVaultNotCreated.selector);
-        factory.createPool(address(0x10), 1, 1);
+        factory.createPool(address(0x10), 1, 1, 0x0);
         vm.stopPrank();
     }
 
     function testCreatePoolOnlyOwnerCanCreatePool() public {
         vm.prank(address(0x10));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0x10)));
-        factory.createPool(owner, 1, 1);
+        factory.createPool(owner, 1, 1, 0x0);
         vm.stopPrank();
     }
 
@@ -394,7 +394,8 @@ contract FactoryTest is Test {
         IERC20Metadata(_fundraisingTokenAddress).approve(address(factory), amount1);
         vm.expectEmit(true, true, true, false);
         emit Factory.LiquidityPoolCreated(usdc, _fundraisingTokenAddress, nonProfitOrg);
-        factory.createPool(nonProfitOrg3, amount0, amount1);
+        bytes32 salt = factory.findSalt(nonProfitOrg3);
+        factory.createPool(nonProfitOrg3, amount0, amount1, salt);
         assertApproxEqAbs(IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager), amount1, tolerance);
         assertEq(IERC20Metadata(usdc).balanceOf(address(factory)), 0);
         // PoolKey memory key = factory.getPoolKey(nonProfitOrg3);
@@ -418,7 +419,8 @@ contract FactoryTest is Test {
         IERC20Metadata(fundraisingTokenAddress).approve(address(factory), amount1);
         vm.expectEmit(true, true, true, false);
         emit Factory.LiquidityPoolCreated(usdc, fundraisingTokenAddress, nonProfitOrg);
-        factory.createPool(nonProfitOrg, amount0, amount1);
+        bytes32 salt = factory.findSalt(nonProfitOrg);
+        factory.createPool(nonProfitOrg, amount0, amount1, salt);
         assertEq(IERC20Metadata(fundraisingTokenAddress).balanceOf(poolManager), amount1 - 1);
         assertEq(IERC20Metadata(usdc).balanceOf(address(factory)), 0);
         vm.stopPrank();
@@ -428,7 +430,7 @@ contract FactoryTest is Test {
         testCreatePoolOwnerCanCreateAPoolOnUniswap();
         vm.startPrank(owner);
         vm.expectRevert(Factory.PoolAlreadyExists.selector);
-        factory.createPool(nonProfitOrg, 1, 1);
+        factory.createPool(nonProfitOrg, 1, 1, 0x0);
         vm.stopPrank();
     }
 
@@ -475,9 +477,10 @@ contract FactoryTest is Test {
 
         vm.startPrank(owner);
         IERC20Metadata(fundraisingTokenAddress2).approve(address(factory), amount1);
+        bytes32 salt = factory.findSalt(nonProfitOrg2);
         vm.expectEmit(true, true, true, false);
         emit Factory.LiquidityPoolCreated(address(0), fundraisingTokenAddress, nonProfitOrg);
-        factory.createPool{value: amount0}(nonProfitOrg2, amount0, amount1);
+        factory.createPool{value: amount0}(nonProfitOrg2, amount0, amount1, salt);
         // amount should be added as a liquidity
         assertEq(address(factory).balance, 0);
         assertApproxEqAbs(IERC20Metadata(fundraisingTokenAddress2).balanceOf(address(poolManager)), amount1, tolerance);

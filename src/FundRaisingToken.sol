@@ -3,8 +3,13 @@ pragma solidity 0.8.26;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ITreasury} from "./interfaces/ITreasury.sol";
-import {console} from "forge-std/console.sol";
 
+/**
+ * @title FundRaisingToken
+ * @notice ERC20 Fundraising token.
+ *         Initial supply is minted to the liquidity pool manager and treasury wallet.
+ * @dev Tokens can be burned only by the treasury wallet to reduce supply.
+ */
 contract FundRaisingToken is ERC20 {
     /**
      * Errors
@@ -21,30 +26,40 @@ contract FundRaisingToken is ERC20 {
     uint8 _decimals;
 
     /**
-     * Modifiers
+     * @notice Modifier to ensure the address is not zero.
+     * @param _address The address to validate.
      */
     modifier nonZeroAddress(address _address) {
         if (_address == address(0)) revert ZeroAddress();
         _;
     }
 
+    /**
+     * @notice Modifier to ensure the amount is not zero.
+     * @param _amount The amount to validate.
+     */
     modifier nonZeroAmount(uint256 _amount) {
         if (_amount == 0) revert ZeroAmount();
         _;
     }
 
+    /**
+     * @notice Modifier to restrict function access only to the treasury wallet.
+     */
     modifier onlyTreasury() {
         if (msg.sender != treasuryAddress) revert OnlyTreasury();
         _;
     }
 
     /**
-     *
-     * @param name Name of the fundraising token
-     * @param symbol Symobl of the fundraising token
-     * @param _lpManager Address of the liquidity pool manager
-     * @param _treasuryAddress Address of the treasury wallet
-     * @param _totalSupply Total supply of the fundraising token
+     * @notice Constructs the FundRaisingToken contract.
+     * @param name The name of the token.
+     * @param symbol The symbol of the token.
+     * @param decimals_ Number of decimals the token uses.
+     * @param _lpManager The address of the liquidity pool manager.
+     * @param _treasuryAddress The address of the treasury wallet.
+     * @param _totalSupply The total supply of tokens to mint initially.
+     * @dev Mints 75% of total supply to the liquidity pool manager and 25% to the treasury wallet.
      */
     constructor(
         string memory name,
@@ -65,13 +80,18 @@ contract FundRaisingToken is ERC20 {
     }
 
     /**
-     * @notice Burns a specific amount of tokens from the treasury wallet.
-     * @param amount Amount of tokens to burn
+     * @notice Burns a specified amount of tokens from the treasury wallet.
+     * @param amount The amount of tokens to burn.
+     * @dev Only callable by the treasury wallet.
      */
     function burn(uint256 amount) external nonZeroAmount(amount) onlyTreasury {
         _burn(msg.sender, amount);
     }
 
+    /**
+     * @notice Returns the number of decimals used by the token.
+     * @return The decimals of the token.
+     */
     function decimals() public view virtual override returns (uint8) {
         return _decimals;
     }
