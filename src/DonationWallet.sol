@@ -3,22 +3,31 @@ pragma solidity 0.8.26;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AutomationCompatibleInterface} from "./interfaces/AutomationCompatibleInterface.sol";
-import {UniversalRouter} from "@uniswap/universal-router/contracts/UniversalRouter.sol";
-import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {IV4Router} from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
-import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
-import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Swap} from "./abstracts/Swap.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
+/**
+ * @title DonationWallet
+ * @notice A contract that manages fundraising tokens, automates token swaps, and transfers proceeds to non-profit organizations.
+ * @dev Integrates with Uniswap V4 for liquidity and swaps, and Chainlink Automation for scheduled upkeep.
+ *      Only authorized factory and registry contracts can perform sensitive operations.
+ *
+ * Features:
+ * - Holds fundraising tokens for non-profit organizations.
+ * - Uses Uniswap V4 hooks and swap logic to convert fundraising tokens into underlying currencies.
+ * - Supports Chainlink Automation-compatible upkeep for automated swapping.
+ * - Emits events for fund transfers.
+ * - Access control enforced with modifiers limiting calls to factory and registry contracts.
+ *
+ * Errors:
+ * - EmergencyPauseAlreadySet: Thrown if attempting to pause an already paused contract.
+ * - NotFactory: Thrown when a function restricted to the factory contract is called by others.
+ * - NotRegistry: Thrown when a function restricted to the registry contract is called by others.
+ * - TransferFailed: Thrown if token or ETH transfers fail.
+ */
 contract DonationWallet is Swap, AutomationCompatibleInterface {
-    using StateLibrary for IPoolManager;
-
     /**
      * Error
      */
@@ -28,7 +37,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     error TransferFailed();
 
     IERC20 public fundraisingTokenAddress; // Address of the FundRaisingToken contract
-    address public owner; // Owner of the DonationWallet
+    address public owner; // Owner of the donationWallet
     address public factoryAddress; // The address of the factory contract
     address public registryAddress; // Address of the registry contract
 
@@ -59,16 +68,20 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
 
     // fallback to receive ETH when swapping
     receive() external payable {}
-    /**
-     *
-     * @param _factoryAddress The address of the factory contract
-     * @param _owner The wallet address of non profit organization that receives the donation
-     * @param _router The address of the uniswap universal router
-     * @param _poolManager The address of the uniswap v4 pool manager
-     * @param _permit2 The address of the uniswap permit2 contract
-     * @param _positionManager The address of the uniswap v4 position manager
-     */
 
+    /**
+     * @notice Initializes the contract with essential protocol addresses and ownership.
+     *
+     * @param _factoryAddress The address of the factory contract.
+     * @param _owner The wallet address of the non-profit organization that receives donations.
+     * @param _router The address of the Uniswap universal router.
+     * @param _poolManager The address of the Uniswap v4 pool manager.
+     * @param _permit2 The address of the Uniswap Permit2 contract.
+     * @param _positionManager The address of the Uniswap v4 position manager.
+     * @param _quoter The address of the Uniswap v4 quoter contract.
+     * @param _fundraisingToken The address of the fundraising ERC20 token.
+     * @dev Can only be called once due to the initializer modifier.
+     */
     function initialize(
         address _factoryAddress,
         address _owner,
@@ -76,17 +89,20 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         address _poolManager,
         address _permit2,
         address _positionManager,
-        address _qouter,
+        address _quoter,
         address _fundraisingToken
     ) external initializer nonZeroAddress(_factoryAddress) nonZeroAddress(_owner) nonZeroAddress(_fundraisingToken) {
-        __init(_router, _poolManager, _permit2, _positionManager, _qouter);
+        __init(_router, _poolManager, _permit2, _positionManager, _quoter);
         owner = _owner;
         factoryAddress = _factoryAddress;
         fundraisingTokenAddress = IERC20(_fundraisingToken);
     }
 
     /**
-     * See {AutomationCompatibleInterace - checkUpKeep}
+     * @notice Called by Chainlink Automation to check if upkeep is needed.
+     * @dev Returns true if the contract holds any fundraising tokens to be swapped.
+     * @return upkeepNeeded Boolean indicating whether upkeep should be performed.
+     * @return performData Additional data to pass to `performUpkeep`, empty here.
      */
     function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = IERC20(fundraisingTokenAddress).balanceOf(address(this)) > 0;
@@ -95,19 +111,32 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     }
 
     /**
-     * See {AutomationCompatibleInterace - performUpkeep}
+     * @notice Called by Chainlink Automation to perform the upkeep when needed.
+     * @dev Executes the swapping of fundraising tokens to the underlying currency and transfers the proceeds
+     *      to the non-profit organization wallet.
+     *      Restricted to be called only by the authorized registry contract.
      */
     function performUpkeep(bytes calldata) external onlyRegistry {
         swapFundraisingToken();
     }
 
+    /**
+     * @notice Sets the address of the registry contract.
+     * @dev Can only be called by the factory contract.
+     * @param _registryAddress The address of the new registry contract.
+     */
     function setRegistry(address _registryAddress) external onlyFactory {
         registryAddress = _registryAddress;
     }
 
     /**
-     * @notice Swap all fundraising tokens to currency0 and transfer to non profit organization wallet
-     * @dev Callbale by chainlink automation
+     * @notice Swaps all fundraising tokens held by the contract to underlying currency and transfers the proceeds to the non-profit organization wallet.
+     * @dev This function is intended to be called by Chainlink Automation (Keepers).
+     *      It determines the correct pool, calculates minimum expected output, performs the swap,
+     *      and then transfers the swapped funds (ETH or ERC20) to the owner's address.
+     *      Reverts if the token transfer or ETH transfer fails.
+     *
+     * Emits a {FundsTransferredToNonProfit} event indicating the owner and amount transferred.
      */
     function swapFundraisingToken() internal {
         uint256 amountIn = fundraisingTokenAddress.balanceOf(address(this));

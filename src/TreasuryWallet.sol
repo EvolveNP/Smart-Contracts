@@ -22,6 +22,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
 import {IStateView} from "@uniswap/v4-periphery/src/interfaces/IStateView.sol";
 
+/**
+ * @title TreasuryWallet
+ * @notice Manages fundraising tokens, periodic transfers to donation wallet, liquidity pool health,
+ *         and integrates with Uniswap V4 pools and Chainlink Automation (Keepers).
+ * @dev This contract includes emergency pause functionality, automatic upkeep checks, and
+ *      functions to swap tokens, add liquidity, and handle token transfers with burn logic.
+ */
 contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     /**
      * Errors
@@ -44,7 +51,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
     uint256 constant minimumHealthThreshhold = 5e16; // The minimum threshold for transferring funds
     uint256 constant minimumHealthThreshholdToAddLP = 10e15; // The minimum threshold to adjust health of the liquidity pool
-    uint256 public constant transferInterval = 30 days; // The interval at which funds transferred to donation wallet
+    uint256 public constant transferInterval = 30 minutes; // The interval at which funds transferred to donation wallet
     uint256 public constant minLPHealthThreshhold = 5e16; // The health threshold
     uint256 internal constant MULTIPLIER = 1e18;
     int24 internal tickSpacing;
@@ -124,7 +131,13 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     }
 
     /**
-     * See {AutomationCompatibleInterace - checkUpKeep}
+     * @notice Called by Chainlink Automation nodes to check if upkeep is required.
+     * @dev Determines if funds transfer or liquidity pool health adjustment is needed based on timing,
+     *      token thresholds, and contract pause status.
+     *      Returns a boolean indicating whether upkeep is needed, and encodes which actions to perform.
+     * @param  performData Not used in this implementation, but part of the interface.
+     * @return upkeepNeeded True if upkeep should be performed, false otherwise.
+     * @return performData Encoded data indicating whether to initiate transfer and/or add liquidity.
      */
     function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData) {
         uint256 transferDate = lastTransferTimestamp + transferInterval;
@@ -148,7 +161,13 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
     }
 
     /**
-     * See {AutomationCompatibleInterace - performUpkeep}
+     * @notice Called by Chainlink Automation nodes to perform scheduled upkeep tasks.
+     * @dev Executes fund transfer to the donation wallet and/or liquidity pool health adjustment
+     *      based on encoded instructions received from `checkUpkeep`.
+     *      Can only be called by the authorized Chainlink registry contract.
+     * @param performData Encoded boolean flags indicating which actions to perform:
+     *                    - `initiateTransfer`: whether to transfer funds.
+     *                    - `initiateAddLiquidity`: whether to adjust liquidity pool health.
      */
     function performUpkeep(bytes calldata performData) external onlyRegistry {
         (bool initiateTransfer, bool initiateAddLiquidity) = abi.decode(performData, (bool, bool));
