@@ -21,6 +21,7 @@ import {Helper} from "./libraries/Helper.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
 import {IStateView} from "@uniswap/v4-periphery/src/interfaces/IStateView.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title TreasuryWallet
@@ -30,6 +31,7 @@ import {IStateView} from "@uniswap/v4-periphery/src/interfaces/IStateView.sol";
  *      functions to swap tokens, add liquidity, and handle token transfers with burn logic.
  */
 contract TreasuryWallet is AutomationCompatibleInterface, Swap {
+    using SafeERC20 for IERC20;
     /**
      * Errors
      */
@@ -51,7 +53,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
     uint256 constant minimumHealthThreshhold = 5e16; // The minimum threshold for transferring funds
     uint256 constant minimumHealthThreshholdToAddLP = 10e15; // The minimum threshold to adjust health of the liquidity pool
-    uint256 public constant transferInterval = 30 minutes; // The interval at which funds transferred to donation wallet
+    uint256 public constant transferInterval = 30 days; // The interval at which funds transferred to donation wallet
     uint256 public constant minLPHealthThreshhold = 5e16; // The health threshold
     uint256 internal constant MULTIPLIER = 1e18;
     int24 internal tickSpacing;
@@ -258,6 +260,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
         address currency0 = Currency.unwrap(key.currency0);
         address currency1 = Currency.unwrap(key.currency1);
+
         bool isCurrency0FundraisingToken = currency0 == address(fundraisingToken);
 
         uint256 minAmountOut = getMinAmountOut(key, isCurrency0FundraisingToken, uint128(amountToSwap), bytes(""));
@@ -384,12 +387,12 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         // approve position manager to spend tokens on behalf of this contract
 
         if (!Currency.wrap(_currency0).isAddressZero()) {
-            IERC20(_currency0).approve(address(permit2), _amount0);
+            IERC20(_currency0).safeIncreaseAllowance(address(permit2), _amount0);
             IPermit2(permit2).approve(_currency0, address(positionManager), uint160(_amount0), uint48(deadline));
         }
 
         if (!Currency.wrap(_currency1).isAddressZero()) {
-            IERC20(_currency1).approve(address(permit2), _amount1);
+            IERC20(_currency1).safeIncreaseAllowance(address(permit2), _amount1);
 
             IPermit2(permit2).approve(_currency1, address(positionManager), uint160(_amount1), uint48(deadline));
         }

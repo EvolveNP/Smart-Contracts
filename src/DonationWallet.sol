@@ -7,6 +7,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Swap} from "./abstracts/Swap.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title DonationWallet
@@ -28,6 +29,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
  * - TransferFailed: Thrown if token or ETH transfers fail.
  */
 contract DonationWallet is Swap, AutomationCompatibleInterface {
+    using SafeERC20 for IERC20;
     /**
      * Error
      */
@@ -156,10 +158,9 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
             (bool success,) = owner.call{value: amountOut}("");
             if (!success) revert TransferFailed();
         } else {
-            bool success = isCurrency0FundraisingToken
-                ? IERC20(currency1).transfer(owner, amountOut)
-                : IERC20(currency0).transfer(owner, amountOut);
-            if (!success) revert TransferFailed();
+            isCurrency0FundraisingToken
+                ? IERC20(currency1).safeTransfer(owner, amountOut)
+                : IERC20(currency0).safeTransfer(owner, amountOut);
         }
         emit FundsTransferredToNonProfit(owner, amountOut);
     }
