@@ -86,29 +86,36 @@ DEPLOYER_PRIVATE_KEY=your_private_key_here
 ETHERSCAN_API_KEY=your_etherscan_api_key_here
 ```
 
+### Deploy & Verify Factory Contract
+
+```
+forge script --chain <chainName> script/Factory.s.sol --rpc-url <RPC_URL> --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify -vvvv
+```
+
+### Deploy & Verify TreasuryWallet Contract
+
+```
+forge script --chain <chainName> script/TreasuryWallet.s.sol --rpc-url <RPC_URL> --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify -vvvv
+```
+
+### Deploy & Verify DonationWallet Contract
+
+```
+forge script --chain <chainName> script/DonationWallet.s.sol --rpc-url <RPC_URL> --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify -vvvv
+```
+
 ### Verify Hook Contract
 
 ```
 forge verify-contract <address> src/Hook.sol:FundraisingTokenHook --etherscan-api-key $ETHERSCAN_API_KEY --chain <chainName>
 ```
 
-### Deploy & Verify Factory Contract
+### Verify Fundraising Token Contract
 
 ```
-forge script --chain sepolia script/Factory.s.sol --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify -vvvv
+forge verify-contract <address> src/FundRaisingToken.sol:FundRaisingToken --etherscan-api-key $ETHERSCAN_API_KEY --chain <chainName>
 ```
 
-### Deploy & Verify TreasuryWallet Contract
-
-```
-forge script --chain sepolia script/TreasuryWallet.s.sol --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify -vvvv
-```
-
-### Deploy & Verify DonationWallet Contract
-
-```
-forge script --chain sepolia script/DonationWallet.s.sol --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify -vvvv
-```
 
 ## Usage
 

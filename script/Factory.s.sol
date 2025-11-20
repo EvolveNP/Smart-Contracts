@@ -19,13 +19,11 @@ contract FactoryScript is Script, Config {
         address poolManager = config.get("poolManager").toAddress();
         address treasuryWalletBeacon = config.get("treasuryWalletBeacon").toAddress();
         address donationWalletBeacon = config.get("donationWalletBeacon").toAddress();
-        address usdc = config.get("usdc").toAddress();
         address positionManager = config.get("positionManager").toAddress();
         address router = config.get("router").toAddress();
         address quoter = config.get("quoter").toAddress();
         address stateView = config.get("stateView").toAddress();
         address admin = config.get("admin").toAddress();
-        address registry = config.get("registry").toAddress();
         address permit2 = config.get("permit2").toAddress();
 
         vm.startBroadcast();

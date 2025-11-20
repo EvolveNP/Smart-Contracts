@@ -21,6 +21,10 @@ import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {BuyFundraisingTokens} from "./BuyTokens.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {TreasuryWallet} from "../src/TreasuryWallet.sol";
+import {MockHook} from "../src/mock/MockHook.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {BalanceDelta, toBalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {IFundraisingToken} from "../src/interfaces/IFundraisingToken.sol";
 
 contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
     uint256 mainnetFork;
@@ -377,5 +381,88 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         uint256 whaleUSDCBalanceAfterBuyingUSDC = IERC20(underlingCurrency).balanceOf(USDC_WHALE);
 
         assertGt(whaleUSDCBalanceAfterBuyingUSDC, whaleUSDCBalanceBeforeBuyingUSDC);
+    }
+
+    function testBeforeSwapRevertsIfTaxFeeIsOutOfRange() public {
+        // Setup pool + protocol
+        factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
+        vm.startPrank(USDC_WHALE);
+
+        key = factory.getPoolKey(factoryTest.nonProfitOrg());
+
+        (address ftn,, address treasuryWallet, address donationWallet,,,) =
+            factory.protocols(factoryTest.nonProfitOrg());
+
+        // Max positive int128 value (2^127 - 1)
+        uint256 threshold = (uint256(1) << 130) - 1;
+
+        // Your chosen swap amount (very large)
+        uint256 swapAmount = threshold * 500;
+
+        // Hook flags
+        uint160 flags = uint160(
+            Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
+                | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        );
+
+        // Deploy the hook via HookMiner
+        bytes memory ctorArgs = abi.encode(address(poolManager), ftn, treasuryWallet, donationWallet);
+
+        (address hookAddress, bytes32 salt) = HookMiner.find(USDC_WHALE, flags, type(MockHook).creationCode, ctorArgs);
+
+        console.log("Hook deployed at:", hookAddress);
+
+        MockHook hook = new MockHook{salt: salt}(address(poolManager), ftn, treasuryWallet, donationWallet);
+
+        // Selling path → negative amountSpecified
+        int256 amountSpecified = -int256(swapAmount);
+        bool zeroForOne = true;
+
+        SwapParams memory params =
+            SwapParams({amountSpecified: amountSpecified, zeroForOne: zeroForOne, sqrtPriceLimitX96: 1});
+
+        // Simulate time passing
+        vm.roll(block.number + 10);
+        vm.warp(block.timestamp + 3 hours);
+
+        // Expect FeeToLarge revert
+        vm.expectRevert(FundraisingTokenHook.FeeToLarge.selector);
+
+        // Call hook
+        hook.beforeSwapEntry(key, params, "");
+    }
+
+    function testGetTreasuryBalanceReturnsZeroIfFundraisingTokenTotalSupplyIsZero() public {
+        vm.startPrank(USDC_WHALE);
+
+        key = factory.getPoolKey(factoryTest.nonProfitOrg());
+
+        (address ftn,, address treasuryWallet, address donationWallet,,,) =
+            factory.protocols(factoryTest.nonProfitOrg());
+
+        // Hook flags
+        uint160 flags = uint160(
+            Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
+                | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        );
+
+        // Deploy the hook via HookMiner
+        bytes memory ctorArgs = abi.encode(address(poolManager), ftn, treasuryWallet, donationWallet);
+
+        (address hookAddress, bytes32 salt) = HookMiner.find(USDC_WHALE, flags, type(MockHook).creationCode, ctorArgs);
+
+        console.log("Hook deployed at:", hookAddress);
+
+        MockHook hook = new MockHook{salt: salt}(address(poolManager), ftn, treasuryWallet, donationWallet);
+
+        uint256 totalSupply = IERC20(ftn).totalSupply();
+        vm.startPrank(factory.owner());
+        IERC20(ftn).transfer(treasuryWallet, IERC20(ftn).balanceOf(factory.owner()));
+        vm.startPrank(treasuryWallet);
+
+        IFundraisingToken(ftn).burn(totalSupply);
+
+        assertEq(hook._getTreasuryBalanceInPerecent(), 0);
+        vm.stopPrank();
     }
 }

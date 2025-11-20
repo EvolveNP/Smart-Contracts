@@ -12,6 +12,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IPoolInitializer_v4} from "@uniswap/v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
@@ -31,6 +32,7 @@ import {FundraisingTokenHook} from "./Hook.sol";
  *      handles pool creation on Uniswap V4, emergency pause features, and registry management.
  */
 contract Factory is Ownable2StepUpgradeable {
+    using SafeERC20 for IERC20;
     /**
      * Errors
      */
@@ -371,12 +373,12 @@ contract Factory is Ownable2StepUpgradeable {
         uint256 amount1 = _amount1;
 
         if (_currency0 != address(0)) {
-            IERC20(_currency0).transferFrom(msg.sender, address(this), amount0);
+            IERC20(_currency0).safeTransferFrom(msg.sender, address(this), amount0);
         } else {
             if (amount0 != msg.value) revert InvalidAmount0();
         }
 
-        IERC20(_currency1).transferFrom(msg.sender, address(this), amount1);
+        IERC20(_currency1).safeTransferFrom(msg.sender, address(this), amount1);
 
         if (_currency0 > _currency1) {
             (_currency0, _currency1) = (_currency1, _currency0);

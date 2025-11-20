@@ -306,7 +306,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     function testCheckUpkeepReturnsUpKeepNeededTrueAndInitiateAddLiquidityAndInitiateTransferTrue() public {
         vm.warp(31 days);
         vm.startPrank(LP_MANAGER);
-        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH)) / MULTIPLIER;
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH - 2000)) / MULTIPLIER;
         fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP); // send FTN token to pool manager. consider it is in Liquidity pool
         (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
         assertEq(upkeepNeeded, true);
