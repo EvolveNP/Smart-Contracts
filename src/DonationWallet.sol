@@ -38,7 +38,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     error NotRegistry();
     error TransferFailed();
 
-    IERC20 public fundraisingTokenAddress; // Address of the FundRaisingToken contract
+    IERC20 public fundraisingToken; // Address of the FundRaisingToken contract
     address public owner; // Owner of the donationWallet
     address public factoryAddress; // The address of the factory contract
     address public registryAddress; // Address of the registry contract
@@ -97,7 +97,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         __init(_router, _poolManager, _permit2, _positionManager, _quoter);
         owner = _owner;
         factoryAddress = _factoryAddress;
-        fundraisingTokenAddress = IERC20(_fundraisingToken);
+        fundraisingToken = IERC20(_fundraisingToken);
     }
 
     /**
@@ -107,7 +107,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      * @return performData Additional data to pass to `performUpkeep`, empty here.
      */
     function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData) {
-        upkeepNeeded = IERC20(fundraisingTokenAddress).balanceOf(address(this)) > 0;
+        upkeepNeeded = IERC20(fundraisingToken).balanceOf(address(this)) > 0;
 
         performData = bytes("");
     }
@@ -141,13 +141,13 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      * Emits a {FundsTransferredToNonProfit} event indicating the owner and amount transferred.
      */
     function swapFundraisingToken() internal {
-        uint256 amountIn = fundraisingTokenAddress.balanceOf(address(this));
+        uint256 amountIn = fundraisingToken.balanceOf(address(this));
 
         PoolKey memory key = IFactory(factoryAddress).getPoolKey(owner);
 
         address currency0 = Currency.unwrap(key.currency0);
         address currency1 = Currency.unwrap(key.currency1);
-        bool isCurrency0FundraisingToken = currency0 == address(fundraisingTokenAddress);
+        bool isCurrency0FundraisingToken = currency0 == address(fundraisingToken);
 
         uint256 minAmountOut = getMinAmountOut(key, isCurrency0FundraisingToken, uint128(amountIn), bytes(""));
 

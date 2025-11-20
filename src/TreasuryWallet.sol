@@ -148,9 +148,8 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
         bool initiateTransfer = ((block.timestamp >= transferDate) && isTransferAllowed());
 
-        bool initiateAddLiqudity = (minLPHealthThreshhold >= lpCurrentThreshold)
+        bool initiateAddLiqudity = (minLPHealthThreshhold > lpCurrentThreshold)
             && (getThreshold(address(this)) > minimumHealthThreshholdToAddLP);
-
         bool emergencyPauseEnabled = paused || IFactory(factoryAddress).pauseAll();
 
         upkeepNeeded = !emergencyPauseEnabled && (initiateTransfer || initiateAddLiqudity);
@@ -250,7 +249,7 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         uint256 lpBalance = fundraisingToken.balanceOf(address(poolManager));
         // adjust LP threshold to 6.5% if current threshold is below 5%
         uint256 amountToAddToLP =
-            ((fundraisingToken.totalSupply() * (minimumHealthThreshhold + 15e16)) / MULTIPLIER) - lpBalance;
+            ((fundraisingToken.totalSupply() * (minimumHealthThreshhold + 15e15)) / MULTIPLIER) - lpBalance;
 
         // swap half of the fundraising token to underlying token
         uint256 amountToSwap = amountToAddToLP / 2;
@@ -387,16 +386,15 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
         // approve position manager to spend tokens on behalf of this contract
 
         if (!Currency.wrap(_currency0).isAddressZero()) {
-            IERC20(_currency0).safeIncreaseAllowance(address(permit2), _amount0);
+            IERC20(_currency0).forceApprove(address(permit2), _amount0);
             IPermit2(permit2).approve(_currency0, address(positionManager), uint160(_amount0), uint48(deadline));
         }
 
         if (!Currency.wrap(_currency1).isAddressZero()) {
-            IERC20(_currency1).safeIncreaseAllowance(address(permit2), _amount1);
+            IERC20(_currency1).forceApprove(address(permit2), _amount1);
 
             IPermit2(permit2).approve(_currency1, address(positionManager), uint160(_amount1), uint48(deadline));
         }
-
         _positionManager.modifyLiquidities{value: valueToPass}(abi.encode(actions, params), deadline);
     }
 }
