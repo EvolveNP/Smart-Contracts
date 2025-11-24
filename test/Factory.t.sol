@@ -16,6 +16,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import {USDC} from "../src/mock/USDC.sol";
 
 contract FactoryTest is Test {
     Factory public factory;
@@ -40,7 +41,7 @@ contract FactoryTest is Test {
 
     string tokenName = "Fundraising Token";
     string tokenSymbol = "FTN";
-    uint256 taxFee = 2e16; // 2%
+    uint256 taxFee = 1e16; // 1%
     uint256 maximumThreshold = 30e16; // 30%
     uint256 minimumHealthThreshhold = 5e16; // 7%
     uint256 transferInterval = 30 days;
@@ -373,7 +374,8 @@ contract FactoryTest is Test {
     function testCreatePoolSwapsCurrienciesIfCurrency0IsGreaterThanCurrency1() public {
         vm.startPrank(owner);
         address nonProfitOrg3 = address(0x100);
-        factory.createFundraisingVault("FundraisingToken", "FTN", usdc, nonProfitOrg3);
+        address evolveUSDC = address(new USDC(6));
+        factory.createFundraisingVault("Evolve NP Fundraising Token", "EFTN", evolveUSDC, nonProfitOrg3);
 
         (address _fundraisingTokenAddress,,,,,,) = factory.protocols(nonProfitOrg3);
 
@@ -383,24 +385,24 @@ contract FactoryTest is Test {
         uint256 amount1 = IERC20Metadata(_fundraisingTokenAddress).balanceOf(owner); // amount of fundraising token
 
         vm.startPrank(USDC_WHALE);
-
-        IERC20Metadata(usdc).transfer(owner, amount0);
+        USDC(evolveUSDC).mint(USDC_WHALE, amount0);
+        IERC20Metadata(evolveUSDC).transfer(owner, amount0);
         vm.stopPrank();
 
         uint256 tolerance = 2_200; // add some tolerance due to precision
 
         vm.startPrank(owner);
-        IERC20Metadata(usdc).approve(address(factory), amount0);
+        IERC20Metadata(evolveUSDC).approve(address(factory), amount0);
         IERC20Metadata(_fundraisingTokenAddress).approve(address(factory), amount1);
         vm.expectEmit(true, true, true, false);
-        emit Factory.LiquidityPoolCreated(usdc, _fundraisingTokenAddress, nonProfitOrg);
+        emit Factory.LiquidityPoolCreated(evolveUSDC, _fundraisingTokenAddress, nonProfitOrg);
         bytes32 salt = factory.findSalt(nonProfitOrg3);
         factory.createPool(nonProfitOrg3, amount0, amount1, salt);
         assertApproxEqAbs(IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager), amount1, tolerance);
         assertEq(IERC20Metadata(usdc).balanceOf(address(factory)), 0);
-        // PoolKey memory key = factory.getPoolKey(nonProfitOrg3);
-        // assertEq(Currency.unwrap(key.currency0), _fundraisingTokenAddress);
-        //  assertEq(Currency.unwrap(key.currency1), usdc);
+        PoolKey memory key = factory.getPoolKey(nonProfitOrg3);
+        //   assertEq(Currency.unwrap(key.currency0), _fundraisingTokenAddress);
+        //   assertEq(Currency.unwrap(key.currency1), evolveUSDC);
         vm.stopPrank();
     }
 
@@ -423,6 +425,9 @@ contract FactoryTest is Test {
         factory.createPool(nonProfitOrg, amount0, amount1, salt);
         assertEq(IERC20Metadata(fundraisingTokenAddress).balanceOf(poolManager), amount1 - 1);
         assertEq(IERC20Metadata(usdc).balanceOf(address(factory)), 0);
+        PoolKey memory key = factory.getPoolKey(nonProfitOrg);
+        assertEq(Currency.unwrap(key.currency0), fundraisingTokenAddress);
+        assertEq(Currency.unwrap(key.currency1), usdc);
         vm.stopPrank();
     }
 
@@ -629,5 +634,43 @@ contract FactoryTest is Test {
         emit Factory.RegistryAddressForDonationSet(donationWalletAddress, registryAddress);
         factory.setRegistryForDonationWallet(nonProfitOrg, registryAddress);
         assertEq(DonationWallet(payable(donationWalletAddress)).registryAddress(), registryAddress);
+    }
+
+    function testFindSaltRevertsIfProtocolNotCreated() public {
+        vm.expectRevert(Factory.ProtocolNotAvailable.selector);
+        factory.findSalt(address(21));
+    }
+
+    function testFindSaltRevertsIfNonProfitOrgOwnerIsZeroAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.findSalt(address(0));
+    }
+
+    function testCreatePoolWithCurrency0UnderlyingTokenAndCurrency1FundraisingToken() public {
+        address _usdc = 0x0f798Adf37595CE12f19Eab49282E61C2a4A139A;
+        uint256 salt = 85878;
+        vm.startPrank(owner);
+        address usdc_ = address(new USDC{salt: bytes32(salt)}(6));
+        //assertEq(_usdc, usdc_);
+        address mekedoniaOwner = address(40);
+        factory.createFundraisingVault("Mekedonia Fundraising Token", "MFTN", usdc_, mekedoniaOwner);
+
+        (address ftn,,,,,,) = factory.protocols(mekedoniaOwner);
+
+        bool isUnderlyingLessThanFundraising = usdc_ < ftn;
+        assertEq(isUnderlyingLessThanFundraising, true);
+        uint256 amount0 = 300_000e6;
+        uint256 amount1 = IERC20Metadata(ftn).balanceOf(owner);
+        USDC(usdc_).mint(owner, amount0);
+
+        USDC(usdc_).approve(address(factory), amount0);
+
+        IERC20Metadata(ftn).approve(address(factory), amount1);
+
+        bytes32 _salt = factory.findSalt(mekedoniaOwner);
+
+        factory.createPool(mekedoniaOwner, amount0, amount1, _salt);
+
+        vm.stopPrank();
     }
 }

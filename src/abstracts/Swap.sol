@@ -25,15 +25,9 @@ abstract contract Swap is Initializable {
 
     error ZeroAddress();
     error ZeroAmount();
-    error InsufficientOutputAmount();
 
     modifier nonZeroAddress(address _address) {
         if (_address == address(0)) revert ZeroAddress();
-        _;
-    }
-
-    modifier nonZeroAmount(uint256 _amount) {
-        if (_amount == 0) revert ZeroAmount();
         _;
     }
 
@@ -98,9 +92,7 @@ abstract contract Swap is Initializable {
         if (Currency.unwrap(currencyOut) == address(0)) {
             balanceBeforeSwap = address(this).balance;
         } else {
-            balanceBeforeSwap = _isCurrency0FundraisingToken
-                ? key.currency1.balanceOf(address(this))
-                : key.currency0.balanceOf(address(this));
+            balanceBeforeSwap = currencyOut.balanceOf(address(this));
         }
 
         approveTokenWithPermit2(currencyInAddress, uint160(amountIn), uint48(deadline));
@@ -110,13 +102,9 @@ abstract contract Swap is Initializable {
         if (Currency.unwrap(currencyOut) == address(0)) {
             balanceAfterSwap = address(this).balance;
         } else {
-            balanceAfterSwap = _isCurrency0FundraisingToken
-                ? key.currency1.balanceOf(address(this))
-                : key.currency0.balanceOf(address(this));
+            balanceAfterSwap = currencyOut.balanceOf(address(this));
         }
         amountOut = balanceAfterSwap - balanceBeforeSwap;
-        if (amountOut < minAmountOut) revert InsufficientOutputAmount();
-        return amountOut;
     }
 
     function approveTokenWithPermit2(address token, uint160 amount, uint48 expiration) internal {

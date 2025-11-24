@@ -20,6 +20,7 @@ import {Factory} from "../src/Factory.sol";
 import {FactoryTest} from "./Factory.t.sol";
 import {BuyFundraisingTokens} from "./BuyTokens.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {USDC} from "../src/mock/USDC.sol";
 
 contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     TreasuryWallet public treasuryWallet;
@@ -306,7 +307,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     function testCheckUpkeepReturnsUpKeepNeededTrueAndInitiateAddLiquidityAndInitiateTransferTrue() public {
         vm.warp(31 days);
         vm.startPrank(LP_MANAGER);
-        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH)) / MULTIPLIER;
+        uint256 minFTNNeededINLP = (fundRaisingToken.totalSupply() * (MIN_LP_HEALTH - 2000)) / MULTIPLIER;
         fundRaisingToken.transfer(POOL_MANAGER, minFTNNeededINLP); // send FTN token to pool manager. consider it is in Liquidity pool
         (bool upkeepNeeded, bytes memory performData) = treasuryWallet.checkUpkeep(bytes(""));
         assertEq(upkeepNeeded, true);
@@ -377,6 +378,82 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
 
         uint128 amountToSwap = 650_000e6; // to make the LP un healthy
         PoolKey memory key = factory.getPoolKey(factoryTest.nonProfitOrg());
+        IPermit2 permit2 = IPermit2(factory.permit2());
+        UniversalRouter router = UniversalRouter(payable(factory.router()));
+        IV4Quoter qouter = IV4Quoter(factory.quoter());
+        uint256 slippage = 5e16;
+        vm.roll(block.number + 100);
+        vm.warp(block.timestamp + 3 hours);
+        uint256 minAmountOut = _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, fundraisingTokenAddress);
+        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, fundraisingTokenAddress);
+        vm.stopPrank();
+        vm.startPrank(address(factory));
+        TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        treasuryInstance.setRegistry(registry);
+        vm.stopPrank();
+        vm.startPrank(registry);
+        bytes memory performData = abi.encode(false, true);
+        treasuryInstance.performUpkeep(performData);
+    }
+
+    function testPerformUpKeepAddLiquidityToLPToAdjustLPHealthIfInitiateAddLiquidityIsTrueAndETHIsUnderlyingAddress()
+        public
+    {
+        FactoryTest factoryTest = new FactoryTest();
+        factoryTest.setUp();
+        factoryTest.testCreatePoolOwnerCanCreatePoolUsingEtherAsUnderlyingToken();
+        Factory factory = factoryTest.factory();
+        address nonProfitOrg = factoryTest.nonProfitOrg2();
+        (address fundraisingTokenAddress,, address treasury,,,,) = factory.protocols(nonProfitOrg);
+        address registry = factoryTest.registryAddress();
+
+        // buy tokens to make lp under health
+        address USDC_WHALE = factoryTest.USDC_WHALE();
+
+        vm.startPrank(USDC_WHALE);
+
+        uint128 amountToSwap = 3000 ether; // to make the LP un healthy
+
+        vm.deal(USDC_WHALE, amountToSwap);
+        PoolKey memory key = factory.getPoolKey(nonProfitOrg);
+        IPermit2 permit2 = IPermit2(factory.permit2());
+        UniversalRouter router = UniversalRouter(payable(factory.router()));
+        IV4Quoter qouter = IV4Quoter(factory.quoter());
+        uint256 slippage = 5e16;
+        vm.roll(block.number + 100);
+        vm.warp(block.timestamp + 3 hours);
+        uint256 minAmountOut = _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, fundraisingTokenAddress);
+        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, fundraisingTokenAddress);
+        vm.stopPrank();
+        vm.startPrank(address(factory));
+        TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        treasuryInstance.setRegistry(registry);
+        vm.stopPrank();
+        vm.startPrank(registry);
+        bytes memory performData = abi.encode(false, true);
+        treasuryInstance.performUpkeep(performData);
+    }
+
+    function testPerformUpKeepAddLiquidityToLPToAdjustLPHealthIfInitiateAddLiquidityIsTrueAndUnderlyingIsCurrencyZero()
+        public
+    {
+        FactoryTest factoryTest = new FactoryTest();
+        factoryTest.setUp();
+        factoryTest.testCreatePoolWithCurrency0UnderlyingTokenAndCurrency1FundraisingToken();
+        Factory factory = factoryTest.factory();
+        address nonProfitOrg = address(40);
+        (address fundraisingTokenAddress, address underlyingAddress, address treasury,,,,) =
+            factory.protocols(nonProfitOrg);
+        address registry = factoryTest.registryAddress();
+
+        // buy tokens to make lp under health
+        address USDC_WHALE = factoryTest.USDC_WHALE();
+
+        vm.startPrank(USDC_WHALE);
+
+        uint128 amountToSwap = 650_000_000e6; // to make the LP un healthy
+        USDC(underlyingAddress).mint(USDC_WHALE, amountToSwap);
+        PoolKey memory key = factory.getPoolKey(nonProfitOrg);
         IPermit2 permit2 = IPermit2(factory.permit2());
         UniversalRouter router = UniversalRouter(payable(factory.router()));
         IV4Quoter qouter = IV4Quoter(factory.quoter());

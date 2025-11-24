@@ -46,7 +46,7 @@ contract FundraisingTokenHook is BaseHook {
     mapping(address => uint256) public lastBuyTimestamp; // The last buy timestamp for each address
 
     // 2% expressed with 18-decimal denominator
-    uint256 public constant TAX_FEE_PERCENTAGE = 2e16; // 0.02 * 1e18 = 2e16 (2%)
+    uint256 public constant TAX_FEE_PERCENTAGE = 1e16; // 0.01 * 1e18 = 1e16 (1%)
     uint256 public constant TAX_FEE_DENOMINATOR = 1e18; // Denominator for tax fee calculation (1e18)
 
     /**
@@ -227,11 +227,9 @@ contract FundraisingTokenHook is BaseHook {
         bool isTaxCutEnabled = checkIfTaxIncurred(caller);
         if (isBuying) {
             int256 _amountOut = params.zeroForOne ? delta.amount1() : delta.amount0();
-
             if (_amountOut <= 0) {
                 return (BaseHook.afterSwap.selector, 0);
             }
-
             // use provided sender (not tx.origin)
             isTransferBlocked(caller, _amountOut);
 
@@ -240,7 +238,6 @@ contract FundraisingTokenHook is BaseHook {
             if (isTaxCutEnabled) {
                 feeAmount = (uint256(_amountOut) * TAX_FEE_PERCENTAGE) / TAX_FEE_DENOMINATOR;
 
-                if (feeAmount >= ((uint256(1) << 127) - 1)) revert FeeToLarge();
                 // sends the fee to treasury wallet
                 poolManager.take(Currency.wrap(fundraisingTokenAddress), treasuryAddress, feeAmount);
             }

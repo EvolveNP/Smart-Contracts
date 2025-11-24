@@ -12,6 +12,7 @@ import {Factory} from "../src/Factory.sol";
 import {FactoryTest} from "./Factory.t.sol";
 import {TreasuryWallet} from "../src/TreasuryWallet.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {USDC} from "../src/mock/USDC.sol";
 
 contract DonationWalletTest is Test {
     DonationWallet public donationWallet;
@@ -238,6 +239,95 @@ contract DonationWalletTest is Test {
         vm.stopPrank();
         assertEq(IERC20(fundraisingTokenAddress).balanceOf(_donationWallet), 0);
         assertGt(owner.balance, 0);
+    }
+
+    function testPerformUpkeepSwapsFundraisingTokenToETHFailsIfOwnerCannotReceiveETH() public {
+        FactoryTest factoryTest = new FactoryTest();
+
+        factoryTest.setUp();
+
+        Factory _factory = factoryTest.factory();
+        address ownerThatNotReceiveETH = address(new USDC(6));
+        address owner = _factory.owner();
+        vm.startPrank(owner);
+        _factory.createFundraisingVault("Fundraising TOken", "FTN", address(0), ownerThatNotReceiveETH);
+
+        uint256 amount0 = 7 ether; // amount of Eth
+        (
+            address fundraisingTokenAddress,
+            address underlyingAddress,
+            address treasuryAddress,
+            address _donationWallet,,,
+        ) = _factory.protocols(ownerThatNotReceiveETH);
+
+        uint256 amount1 = IERC20(fundraisingTokenAddress).balanceOf(owner); // amount of fundraising token
+
+        vm.deal(owner, amount0);
+
+        uint256 tolerance = 2_200; // add some tolerance due to precision
+
+        vm.startPrank(owner);
+        console.log(fundraisingTokenAddress, amount1, "amount");
+        IERC20(fundraisingTokenAddress).approve(address(_factory), amount1);
+        bytes32 salt = _factory.findSalt(ownerThatNotReceiveETH);
+
+        vm.expectEmit(true, true, true, false);
+        emit Factory.LiquidityPoolCreated(address(0), fundraisingTokenAddress, ownerThatNotReceiveETH);
+        _factory.createPool{value: amount0}(ownerThatNotReceiveETH, amount0, amount1, salt);
+
+        // amount should be added as a liquidity
+        assertEq(address(_factory).balance, 0);
+        assertApproxEqAbs(
+            IERC20(fundraisingTokenAddress).balanceOf(address(_factory.poolManager())), amount1, tolerance
+        );
+
+        assertEq(underlyingAddress, address(0));
+        TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));
+        address _registryAddress = treasuryWallet.registryAddress();
+        vm.startPrank(_registryAddress);
+        bytes memory performData = abi.encode(true, false);
+        treasuryWallet.performUpkeep(performData);
+
+        uint256 donationBalance = IERC20(fundraisingTokenAddress).balanceOf(_donationWallet);
+        assertGt(donationBalance, 0);
+
+        vm.expectRevert(DonationWallet.TransferFailed.selector);
+        DonationWallet(payable(_donationWallet)).performUpkeep(bytes(""));
+        vm.stopPrank();
+    }
+
+    function testPerformUpkeepSwapsFundraisingTokenAndSendToNonProfitOrgWhenUnderlyingAddressIsCurrency0AndFundraisingCurrency1()
+        public
+    {
+        FactoryTest factoryTest = new FactoryTest();
+
+        factoryTest.setUp();
+        factoryTest.testCreatePoolWithCurrency0UnderlyingTokenAndCurrency1FundraisingToken();
+
+        Factory _factory = factoryTest.factory();
+
+        address nonProfigOrg = address(40);
+
+        (
+            address fundraisingTokenAddress,
+            address underlyingAddress,
+            address treasuryAddress,
+            address _donationWallet,,,
+        ) = _factory.protocols(nonProfigOrg);
+
+        TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));
+        bytes memory performData = abi.encode(true, false);
+        address _registryAddress = treasuryWallet.registryAddress();
+        vm.startPrank(_registryAddress);
+        treasuryWallet.performUpkeep(performData);
+
+        uint256 donationBalance = IERC20(fundraisingTokenAddress).balanceOf(_donationWallet);
+        assertGt(donationBalance, 0);
+        address owner = DonationWallet(payable(_donationWallet)).owner();
+        DonationWallet(payable(_donationWallet)).performUpkeep(bytes(""));
+        vm.stopPrank();
+        assertEq(IERC20(fundraisingTokenAddress).balanceOf(_donationWallet), 0);
+        assertGt(IERC20(underlyingAddress).balanceOf(owner), 0);
     }
 
     function testReceive() public {
