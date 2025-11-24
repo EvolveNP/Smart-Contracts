@@ -296,6 +296,40 @@ contract DonationWalletTest is Test {
         vm.stopPrank();
     }
 
+    function testPerformUpkeepSwapsFundraisingTokenAndSendToNonProfitOrgWhenUnderlyingAddressIsCurrency0AndFundraisingCurrency1()
+        public
+    {
+        FactoryTest factoryTest = new FactoryTest();
+
+        factoryTest.setUp();
+        factoryTest.testCreatePoolWithCurrency0UnderlyingTokenAndCurrency1FundraisingToken();
+
+        Factory _factory = factoryTest.factory();
+
+        address nonProfigOrg = address(40);
+
+        (
+            address fundraisingTokenAddress,
+            address underlyingAddress,
+            address treasuryAddress,
+            address _donationWallet,,,
+        ) = _factory.protocols(nonProfigOrg);
+
+        TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));
+        bytes memory performData = abi.encode(true, false);
+        address _registryAddress = treasuryWallet.registryAddress();
+        vm.startPrank(_registryAddress);
+        treasuryWallet.performUpkeep(performData);
+
+        uint256 donationBalance = IERC20(fundraisingTokenAddress).balanceOf(_donationWallet);
+        assertGt(donationBalance, 0);
+        address owner = DonationWallet(payable(_donationWallet)).owner();
+        DonationWallet(payable(_donationWallet)).performUpkeep(bytes(""));
+        vm.stopPrank();
+        assertEq(IERC20(fundraisingTokenAddress).balanceOf(_donationWallet), 0);
+        assertGt(IERC20(underlyingAddress).balanceOf(owner), 0);
+    }
+
     function testReceive() public {
         vm.deal(address(donationWallet), 1 ether);
         assertEq(address(donationWallet).balance, 1 ether);

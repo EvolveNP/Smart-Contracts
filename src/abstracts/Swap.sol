@@ -25,7 +25,6 @@ abstract contract Swap is Initializable {
 
     error ZeroAddress();
     error ZeroAmount();
-    error InsufficientOutputAmount();
 
     modifier nonZeroAddress(address _address) {
         if (_address == address(0)) revert ZeroAddress();
@@ -106,8 +105,6 @@ abstract contract Swap is Initializable {
             balanceAfterSwap = currencyOut.balanceOf(address(this));
         }
         amountOut = balanceAfterSwap - balanceBeforeSwap;
-        if (amountOut < minAmountOut) revert InsufficientOutputAmount();
-        return amountOut;
     }
 
     function approveTokenWithPermit2(address token, uint160 amount, uint48 expiration) internal {

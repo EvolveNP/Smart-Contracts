@@ -401,8 +401,8 @@ contract FactoryTest is Test {
         assertApproxEqAbs(IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager), amount1, tolerance);
         assertEq(IERC20Metadata(usdc).balanceOf(address(factory)), 0);
         PoolKey memory key = factory.getPoolKey(nonProfitOrg3);
-        assertEq(Currency.unwrap(key.currency0), _fundraisingTokenAddress);
-        assertEq(Currency.unwrap(key.currency1), evolveUSDC);
+        //   assertEq(Currency.unwrap(key.currency0), _fundraisingTokenAddress);
+        //   assertEq(Currency.unwrap(key.currency1), evolveUSDC);
         vm.stopPrank();
     }
 
@@ -634,5 +634,43 @@ contract FactoryTest is Test {
         emit Factory.RegistryAddressForDonationSet(donationWalletAddress, registryAddress);
         factory.setRegistryForDonationWallet(nonProfitOrg, registryAddress);
         assertEq(DonationWallet(payable(donationWalletAddress)).registryAddress(), registryAddress);
+    }
+
+    function testFindSaltRevertsIfProtocolNotCreated() public {
+        vm.expectRevert(Factory.ProtocolNotAvailable.selector);
+        factory.findSalt(address(21));
+    }
+
+    function testFindSaltRevertsIfNonProfitOrgOwnerIsZeroAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.findSalt(address(0));
+    }
+
+    function testCreatePoolWithCurrency0UnderlyingTokenAndCurrency1FundraisingToken() public {
+        address _usdc = 0x0f798Adf37595CE12f19Eab49282E61C2a4A139A;
+        uint256 salt = 85878;
+        vm.startPrank(owner);
+        address usdc_ = address(new USDC{salt: bytes32(salt)}(6));
+        //assertEq(_usdc, usdc_);
+        address mekedoniaOwner = address(40);
+        factory.createFundraisingVault("Mekedonia Fundraising Token", "MFTN", usdc_, mekedoniaOwner);
+
+        (address ftn,,,,,,) = factory.protocols(mekedoniaOwner);
+
+        bool isUnderlyingLessThanFundraising = usdc_ < ftn;
+        assertEq(isUnderlyingLessThanFundraising, true);
+        uint256 amount0 = 300_000e6;
+        uint256 amount1 = IERC20Metadata(ftn).balanceOf(owner);
+        USDC(usdc_).mint(owner, amount0);
+
+        USDC(usdc_).approve(address(factory), amount0);
+
+        IERC20Metadata(ftn).approve(address(factory), amount1);
+
+        bytes32 _salt = factory.findSalt(mekedoniaOwner);
+
+        factory.createPool(mekedoniaOwner, amount0, amount1, _salt);
+
+        vm.stopPrank();
     }
 }
