@@ -676,4 +676,42 @@ contract FactoryTest is Test {
 
         vm.stopPrank();
     }
+
+    function testChangeProtocolOwnerRevertsIfNewNonProfitOrgAddressIsZeroAddress() public {
+        vm.expectRevert(Factory.ZeroAddress.selector);
+        factory.changeNonProfitOrgOwner(address(0));
+    }
+
+    function testChangeProtocolOwnershipRevertsIfProtocolNotAvailable() public {
+        vm.expectRevert(Factory.ProtocolNotAvailable.selector);
+        factory.changeNonProfitOrgOwner(address(20));
+    }
+
+    function testChangeProtocolOwnershipRevertsIfCallerIsNotOwner() public {
+        vm.expectRevert(Factory.NotProtocolOwner.selector);
+        address newNonProfitOrgAddress = address(20);
+        vm.startPrank(address(20));
+        factory.changeNonProfitOrgOwner(newNonProfitOrgAddress);
+        vm.stopPrank();
+    }
+
+    function testChangeProtocolOwnershipRevertsIfDestinationAddressIsOccupied() public {
+        vm.expectRevert(Factory.DestinationAlreadyOccupied.selector);
+        vm.startPrank(nonProfitOrg);
+        factory.changeNonProfitOrgOwner(nonProfitOrg);
+        vm.stopPrank();
+    }
+
+    function testChangeProtocolOwnershipEmitsProtocolOwnerChangedEvent() public {
+        vm.startPrank(nonProfitOrg);
+        address newNonProfitOrgAddress = address(20);
+        vm.expectEmit(true, true, false, false);
+        // protocol data before changing
+        (address ftn,,,,,,) = factory.protocols(nonProfitOrg);
+        emit Factory.ProtocolOwnerChanged(nonProfitOrg, newNonProfitOrgAddress);
+        factory.changeNonProfitOrgOwner(newNonProfitOrgAddress);
+        (address ftn1,,, address donationWallet,,,) = factory.protocols(newNonProfitOrgAddress);
+        assertEq(ftn, ftn1);
+        assertEq(DonationWallet(payable(donationWallet)).owner(), newNonProfitOrgAddress);
+    }
 }

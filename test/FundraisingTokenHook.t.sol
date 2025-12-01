@@ -406,7 +406,8 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         );
 
         // Deploy the hook via HookMiner
-        bytes memory ctorArgs = abi.encode(address(poolManager), ftn, treasuryWallet, donationWallet, address(router), address(quoter));
+        bytes memory ctorArgs =
+            abi.encode(address(poolManager), ftn, treasuryWallet, donationWallet, address(router), address(quoter));
 
         (address hookAddress, bytes32 salt) = HookMiner.find(USDC_WHALE, flags, type(MockHook).creationCode, ctorArgs);
 
