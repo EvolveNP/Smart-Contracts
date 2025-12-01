@@ -11,8 +11,14 @@ contract MockHook is FundraisingTokenHook {
         address _poolManager,
         address _fundraisingTokenAddress,
         address _treasuryAddress,
-        address _donationAddress
-    ) FundraisingTokenHook(_poolManager, _fundraisingTokenAddress, _treasuryAddress, _donationAddress) {}
+        address _donationAddress,
+        address _routerAddress,
+        address _quoterAddress
+    )
+        FundraisingTokenHook(
+            _poolManager, _fundraisingTokenAddress, _treasuryAddress, _donationAddress, _routerAddress, _quoterAddress
+        )
+    {}
 
     function beforeSwapEntry(PoolKey calldata key, SwapParams calldata params, bytes calldata hookData) external {
         _beforeSwap(msg.sender, key, params, hookData);

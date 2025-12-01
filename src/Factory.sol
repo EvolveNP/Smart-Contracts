@@ -393,7 +393,7 @@ contract Factory is Ownable2StepUpgradeable {
 
         // deploy hook
         IHooks hook = new FundraisingTokenHook{salt: _salt}(
-            poolManager, _protocol.fundraisingToken, _protocol.treasuryWallet, _protocol.donationWallet
+            poolManager, _protocol.fundraisingToken, _protocol.treasuryWallet, _protocol.donationWallet, router, quoter
         );
 
         // transfer assets to this contract;
@@ -647,8 +647,9 @@ contract Factory is Ownable2StepUpgradeable {
         if (protocol.fundraisingToken == address(0)) revert ProtocolNotAvailable();
 
         // Mine a salt that will produce a hook address with the correct flags
-        bytes memory constructorArgs =
-            abi.encode(poolManager, protocol.fundraisingToken, protocol.treasuryWallet, protocol.donationWallet);
+        bytes memory constructorArgs = abi.encode(
+            poolManager, protocol.fundraisingToken, protocol.treasuryWallet, protocol.donationWallet, router, quoter
+        );
         (, bytes32 salt) =
             HookMiner.find(address(this), flags, type(FundraisingTokenHook).creationCode, constructorArgs);
         return salt;

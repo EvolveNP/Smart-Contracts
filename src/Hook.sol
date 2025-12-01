@@ -12,6 +12,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {BeforeSwapDelta, toBeforeSwapDelta} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 import {ITreasury} from "./interfaces/ITreasury.sol";
 import {IDonationWallet} from "./interfaces/IDonationWallet.sol";
+import {IMsgSender} from "v4-periphery/src/interfaces/IMsgSender.sol";
 
 /**
  * @title FundraisingTokenHook
@@ -42,8 +43,11 @@ contract FundraisingTokenHook is BaseHook {
     address public immutable treasuryAddress; // The address of the treasury wallet address
     address public immutable donationAddress; // The address of the donation wallet address
     uint256 public constant maximumThreshold = 30e16; // The maximum threshold for the liquidity pool 30% = 30e16
+    address public router; // router address used to swap in treasury and donation wallet
+    address public quoter; // quoter address used to swap in treasury and donation wallet
 
     mapping(address => uint256) public lastBuyTimestamp; // The last buy timestamp for each address
+    mapping(address swapRouter => bool approved) public verifiedRouters;
 
     // 2% expressed with 18-decimal denominator
     uint256 public constant TAX_FEE_PERCENTAGE = 1e16; // 0.01 * 1e18 = 1e16 (1%)
@@ -70,13 +74,17 @@ contract FundraisingTokenHook is BaseHook {
         address _poolManager,
         address _fundraisingTokenAddress,
         address _treasuryAddress,
-        address _donationAddress
+        address _donationAddress,
+        address _router,
+        address _quoter
     ) BaseHook(IPoolManager(_poolManager)) {
         fundraisingTokenAddress = _fundraisingTokenAddress;
         launchTimestamp = block.timestamp;
         launchBlock = block.number;
         treasuryAddress = _treasuryAddress;
         donationAddress = _donationAddress;
+        router = _router;
+        quoter = _quoter;
     }
 
     /**
@@ -148,14 +156,14 @@ contract FundraisingTokenHook is BaseHook {
      * - Fee flows directly to `treasuryAddress`, which must be trusted and controlled by governance.
      * - Prevents overflow in signed integer conversions.
      */
-    function _beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
+    function _beforeSwap(address sender, PoolKey calldata key, SwapParams calldata params, bytes calldata)
         internal
         virtual
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        // when selling we cut tax from specified amount in.
-        address caller = tx.origin;
+        address caller = getMsgSender(sender);
+
         bool isFundraisingTokenCurrency0 = Currency.unwrap(key.currency0) == fundraisingTokenAddress;
         bool isSelling =
             (isFundraisingTokenCurrency0 && params.zeroForOne) || (!isFundraisingTokenCurrency0 && !params.zeroForOne);
@@ -209,12 +217,14 @@ contract FundraisingTokenHook is BaseHook {
      *      - Transfers the buy fee directly to `treasuryAddress` using `poolManager.take`.
      *      - `treasuryAddress`, `fundraisingTokenAddress`, and `poolManager` are trusted and immutable.
      */
-    function _afterSwap(address, PoolKey calldata key, SwapParams calldata params, BalanceDelta delta, bytes calldata)
-        internal
-        override
-        returns (bytes4, int128)
-    {
-        address caller = tx.origin;
+    function _afterSwap(
+        address sender,
+        PoolKey calldata key,
+        SwapParams calldata params,
+        BalanceDelta delta,
+        bytes calldata
+    ) internal override returns (bytes4, int128) {
+        address caller = getMsgSender(sender);
         address currency0 = Currency.unwrap(key.currency0);
 
         bool isFundraisingTokenIsCurrencyZero = currency0 == fundraisingTokenAddress;
@@ -305,7 +315,17 @@ contract FundraisingTokenHook is BaseHook {
      */
     function checkIfTaxIncurred(address sender) internal view returns (bool) {
         return !ITreasury(treasuryAddress).isTreasuryPaused() && (getTreasuryBalanceInPerecent() < maximumThreshold)
-            && sender != ITreasury(treasuryAddress).registryAddress()
-            && sender != IDonationWallet(donationAddress).registryAddress();
+            && sender != treasuryAddress && sender != donationAddress;
+    }
+
+    function getMsgSender(address sender) internal view returns (address) {
+        if (sender == quoter || sender == router) {
+            return IMsgSender(sender).msgSender();
+        } else {
+            // for antisniping protection we are using tx.origin the EOA account that initiates the transaction
+            // In addtion if the swap is initiated from other router address we tx.origin as default caller
+            // and we incur tax for all swap transactions initiated from other routers
+            return tx.origin;
+        }
     }
 }
