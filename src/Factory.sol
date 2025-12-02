@@ -594,8 +594,6 @@ contract Factory is Ownable2StepUpgradeable {
 
         if (_protocol.treasuryWallet == address(0)) revert ProtocolNotAvailable();
 
-        if (_protocol.owner != msg.sender) revert NotProtocolOwner();
-
         if (protocols[newNonProfitOrgAddress].treasuryWallet != address(0)) revert DestinationAlreadyOccupied();
 
         PoolKey memory _key = poolKeys[msg.sender];

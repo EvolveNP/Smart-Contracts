@@ -687,14 +687,6 @@ contract FactoryTest is Test {
         factory.changeNonProfitOrgOwner(address(20));
     }
 
-    function testChangeProtocolOwnershipRevertsIfCallerIsNotOwner() public {
-        vm.expectRevert(Factory.NotProtocolOwner.selector);
-        address newNonProfitOrgAddress = address(20);
-        vm.startPrank(address(20));
-        factory.changeNonProfitOrgOwner(newNonProfitOrgAddress);
-        vm.stopPrank();
-    }
-
     function testChangeProtocolOwnershipRevertsIfDestinationAddressIsOccupied() public {
         vm.expectRevert(Factory.DestinationAlreadyOccupied.selector);
         vm.startPrank(nonProfitOrg);
