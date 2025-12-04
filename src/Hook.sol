@@ -47,7 +47,6 @@ contract FundraisingTokenHook is BaseHook {
     address public quoter; // quoter address used to swap in treasury and donation wallet
 
     mapping(address => uint256) public lastBuyTimestamp; // The last buy timestamp for each address
-    mapping(address swapRouter => bool approved) public verifiedRouters;
 
     // 2% expressed with 18-decimal denominator
     uint256 public constant TAX_FEE_PERCENTAGE = 1e16; // 0.01 * 1e18 = 1e16 (1%)
