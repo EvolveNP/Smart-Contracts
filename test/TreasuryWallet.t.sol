@@ -21,6 +21,7 @@ import {FactoryTest} from "./Factory.t.sol";
 import {BuyFundraisingTokens} from "./BuyTokens.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {USDC} from "../src/mock/USDC.sol";
+import {FundraisingTokenHook} from "../src/Hook.sol";
 
 contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     TreasuryWallet public treasuryWallet;
@@ -406,7 +407,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         address nonProfitOrg = factoryTest.nonProfitOrg2();
         (address fundraisingTokenAddress,, address treasury,,,,) = factory.protocols(nonProfitOrg);
         address registry = factoryTest.registryAddress();
-
+        address _router = factoryTest.router();
         // buy tokens to make lp under health
         address USDC_WHALE = factoryTest.USDC_WHALE();
 
@@ -417,7 +418,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         vm.deal(USDC_WHALE, amountToSwap);
         PoolKey memory key = factory.getPoolKey(nonProfitOrg);
         IPermit2 permit2 = IPermit2(factory.permit2());
-        UniversalRouter router = UniversalRouter(payable(factory.router()));
+        UniversalRouter router = UniversalRouter(payable(_router));
         IV4Quoter qouter = IV4Quoter(factory.quoter());
         uint256 slippage = 5e16;
         vm.roll(block.number + 100);

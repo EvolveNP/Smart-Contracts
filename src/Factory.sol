@@ -49,6 +49,8 @@ contract Factory is Ownable2StepUpgradeable {
     error OnlyCalledByNonProfitOrg();
     error ProtocolNotAvailable();
     error RegistryAlreadySet();
+    error NotProtocolOwner();
+    error DestinationAlreadyOccupied();
 
     struct FundraisingProtocol {
         address fundraisingToken; // The address of the fundraising token
@@ -150,6 +152,8 @@ contract Factory is Ownable2StepUpgradeable {
      * @param registryAddress The new registry contract address set for the donation wallet.
      */
     event RegistryAddressForDonationSet(address donationWallet, address registryAddress);
+
+    event ProtocolOwnerChanged(address oldNonProfitOrgAddress, address newNonProfitOrgAddress);
 
     /**
      * @notice Ensures that the provided address is not the zero address.
@@ -393,7 +397,7 @@ contract Factory is Ownable2StepUpgradeable {
 
         // deploy hook
         IHooks hook = new FundraisingTokenHook{salt: _salt}(
-            poolManager, _protocol.fundraisingToken, _protocol.treasuryWallet, _protocol.donationWallet
+            poolManager, _protocol.fundraisingToken, _protocol.treasuryWallet, _protocol.donationWallet, router, quoter
         );
 
         // transfer assets to this contract;
@@ -561,6 +565,53 @@ contract Factory is Ownable2StepUpgradeable {
     }
 
     /**
+     * @notice Transfers ownership of an existing nonprofit protocol to a new nonprofit address.
+     *
+     * @dev
+     * Requirements:
+     * - The caller must be the current owner of an existing protocol.
+     * - `newNonProfitOrgAddress` must not be the zero address.
+     * - `newNonProfitOrgAddress` must not already have a protocol registered.
+     * - Updates protocol ownership in storage, including the associated `PoolKey`.
+     * - Updates the owner of the linked `DonationWallet` contract.
+     * - Emits a {ProtocolOwnerChanged} event on success.
+     *
+     * Effects:
+     * - Removes the protocol and pool key mappings from the old owner address.
+     * - Assigns the protocol and pool key to `newNonProfitOrgAddress`.
+     * - Sets the protocol's `owner` field to `newNonProfitOrgAddress`.
+     * - Calls `changeOwner` on the protocol's donation wallet.
+     *
+     * Reverts:
+     * - {ProtocolNotAvailable} if the caller does not have a protocol registered.
+     * - {NotProtocolOwner} if the caller is not the protocol owner.
+     * - {DestinationAlreadyOccupied} if the new address already owns a protocol.
+     *
+     * @param newNonProfitOrgAddress The address to which ownership of the nonprofit protocol is transferred.
+     */
+    function changeNonProfitOrgOwner(address newNonProfitOrgAddress) external nonZeroAddress(newNonProfitOrgAddress) {
+        FundraisingProtocol memory _protocol = protocols[msg.sender];
+
+        if (_protocol.treasuryWallet == address(0)) revert ProtocolNotAvailable();
+
+        if (protocols[newNonProfitOrgAddress].treasuryWallet != address(0)) revert DestinationAlreadyOccupied();
+
+        PoolKey memory _key = poolKeys[msg.sender];
+
+        delete protocols[msg.sender];
+        delete poolKeys[msg.sender];
+
+        _protocol.owner = newNonProfitOrgAddress;
+
+        protocols[newNonProfitOrgAddress] = _protocol;
+        poolKeys[newNonProfitOrgAddress] = _key;
+
+        DonationWallet(payable(_protocol.donationWallet)).changeOwner(newNonProfitOrgAddress);
+
+        emit ProtocolOwnerChanged(msg.sender, newNonProfitOrgAddress);
+    }
+
+    /**
      * @notice Returns the PoolKey associated with a given owner address.
      * @dev Retrieves the PoolKey struct from the mapping using the provided owner address.
      * @param _owner The address of the pool owner whose PoolKey is to be retrieved.
@@ -647,8 +698,9 @@ contract Factory is Ownable2StepUpgradeable {
         if (protocol.fundraisingToken == address(0)) revert ProtocolNotAvailable();
 
         // Mine a salt that will produce a hook address with the correct flags
-        bytes memory constructorArgs =
-            abi.encode(poolManager, protocol.fundraisingToken, protocol.treasuryWallet, protocol.donationWallet);
+        bytes memory constructorArgs = abi.encode(
+            poolManager, protocol.fundraisingToken, protocol.treasuryWallet, protocol.donationWallet, router, quoter
+        );
         (, bytes32 salt) =
             HookMiner.find(address(this), flags, type(FundraisingTokenHook).creationCode, constructorArgs);
         return salt;

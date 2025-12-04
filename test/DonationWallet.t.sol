@@ -346,4 +346,15 @@ contract DonationWalletTest is Test {
         assertEq(donationWallet.registryAddress(), address(20));
         vm.stopPrank();
     }
+
+    function testChangeOwnerOnlyCalledByFactory() public {
+        vm.expectRevert(DonationWallet.NotFactory.selector);
+        donationWallet.changeOwner(address(20));
+    }
+
+    function testChangeOwnerCanChangeOwner() public {
+        vm.startPrank(address(factory));
+        donationWallet.changeOwner(address(20));
+        assertEq(donationWallet.owner(), address(20));
+    }
 }

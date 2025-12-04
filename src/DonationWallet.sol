@@ -132,6 +132,15 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     }
 
     /**
+     * @notice Used to change the address of the non profit org
+     * @param _newNonProfitOrgOwner The address of the new non profit org
+     * @dev Only called by factory contract
+     */
+    function changeOwner(address _newNonProfitOrgOwner) external onlyFactory {
+        owner = _newNonProfitOrgOwner;
+    }
+
+    /**
      * @notice Swaps all fundraising tokens held by the contract to underlying currency and transfers the proceeds to the non-profit organization wallet.
      * @dev This function is intended to be called by Chainlink Automation (Keepers).
      *      It determines the correct pool, calculates minimum expected output, performs the swap,

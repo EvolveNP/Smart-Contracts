@@ -5,6 +5,8 @@ import {Script, console} from "forge-std/Script.sol";
 import {Factory} from "../src/Factory.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Config} from "forge-std/Config.sol";
+import {V4Quoter} from "@uniswap/universal-router/lib/v4-periphery/src/lens/V4Quoter.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 
 contract FactoryScript is Script, Config {
     function test() public {}
@@ -21,13 +23,12 @@ contract FactoryScript is Script, Config {
         address donationWalletBeacon = config.get("donationWalletBeacon").toAddress();
         address positionManager = config.get("positionManager").toAddress();
         address router = config.get("router").toAddress();
-        address quoter = config.get("quoter").toAddress();
         address stateView = config.get("stateView").toAddress();
         address admin = config.get("admin").toAddress();
         address permit2 = config.get("permit2").toAddress();
 
         vm.startBroadcast();
-
+        address quoter = address(new V4Quoter(IPoolManager(poolManager)));
         address factoryImplementation = address(new Factory());
         Factory factory =
             Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
@@ -47,6 +48,7 @@ contract FactoryScript is Script, Config {
 
         config.set("factoryImplementation", factoryImplementation);
         config.set("factory", address(factory));
+        config.set("quoter", quoter);
         vm.stopBroadcast();
     }
 }

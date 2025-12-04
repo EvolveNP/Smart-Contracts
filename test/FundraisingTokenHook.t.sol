@@ -37,7 +37,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
     address public usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     UniversalRouter public router; // The address of the uniswap universal router
     IPermit2 public permit2;
-    IV4Quoter public qouter; // qouter
+    IV4Quoter public quoter; // quoter
     uint256 public constant slippage = 5e16; // 5%
 
     function setUp() public {
@@ -51,7 +51,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         factory = factoryTest.factory();
         permit2 = IPermit2(factory.permit2());
         router = UniversalRouter(payable(factory.router()));
-        qouter = IV4Quoter(factory.quoter());
+        quoter = IV4Quoter(factory.quoter());
     }
 
     function testCannotBuyFundraisingTokenIfBlockToHoldNotPassed() public {
@@ -272,14 +272,14 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         // first buy
         vm.roll(block.number + 10);
-        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
 
         buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
 
         //second buy after cool down period passed
         vm.warp(block.timestamp + 2 minutes);
 
-        uint256 _minAmountOut2 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut2 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
 
         buyFundraisingToken(key, amountIn, uint128(_minAmountOut2), permit2, router, fundraisingTokenAddress);
 
@@ -288,7 +288,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         uint128 amountIn3 = 5000e6;
 
-        uint256 _minAmountOut = _getMinAmountOut(key, amountIn3, bytes(""), qouter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut = _getMinAmountOut(key, amountIn3, bytes(""), quoter, slippage, fundraisingTokenAddress);
 
         buyFundraisingToken(key, amountIn3, uint128(_minAmountOut), permit2, router, fundraisingTokenAddress);
     }
@@ -309,7 +309,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         vm.startPrank(USDC_WHALE);
         // first buy
         vm.roll(block.number + 10);
-        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
 
         buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
 
@@ -328,7 +328,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         // first buy
         vm.roll(block.number + 10);
         vm.warp(block.timestamp + 2 hours);
-        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
 
         buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
 
@@ -343,7 +343,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         //second buy after cool down period passed
         vm.warp(block.timestamp + 2 minutes);
 
-        uint256 _minAmountOut2 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut2 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
 
         buyFundraisingToken(key, amountIn, uint128(_minAmountOut2), permit2, router, fundraisingTokenAddress);
 
@@ -352,7 +352,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         uint128 amountIn3 = 5000000e6;
 
-        uint256 _minAmountOut = _getMinAmountOut(key, amountIn3, bytes(""), qouter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut = _getMinAmountOut(key, amountIn3, bytes(""), quoter, slippage, fundraisingTokenAddress);
 
         buyFundraisingToken(key, amountIn3, uint128(_minAmountOut), permit2, router, fundraisingTokenAddress);
 
@@ -370,7 +370,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         // first buy
         vm.roll(block.number + 10);
         vm.warp(block.timestamp + 2 hours);
-        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), qouter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
 
         buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
 
@@ -406,13 +406,16 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         );
 
         // Deploy the hook via HookMiner
-        bytes memory ctorArgs = abi.encode(address(poolManager), ftn, treasuryWallet, donationWallet);
+        bytes memory ctorArgs =
+            abi.encode(address(poolManager), ftn, treasuryWallet, donationWallet, address(router), address(quoter));
 
         (address hookAddress, bytes32 salt) = HookMiner.find(USDC_WHALE, flags, type(MockHook).creationCode, ctorArgs);
 
         console.log("Hook deployed at:", hookAddress);
 
-        MockHook hook = new MockHook{salt: salt}(address(poolManager), ftn, treasuryWallet, donationWallet);
+        MockHook hook = new MockHook{salt: salt}(
+            address(poolManager), ftn, treasuryWallet, donationWallet, address(router), address(quoter)
+        );
 
         // Selling path → negative amountSpecified
         int256 amountSpecified = -int256(swapAmount);
@@ -447,13 +450,16 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         );
 
         // Deploy the hook via HookMiner
-        bytes memory ctorArgs = abi.encode(address(poolManager), ftn, treasuryWallet, donationWallet);
+        bytes memory ctorArgs =
+            abi.encode(address(poolManager), ftn, treasuryWallet, donationWallet, address(router), address(quoter));
 
         (address hookAddress, bytes32 salt) = HookMiner.find(USDC_WHALE, flags, type(MockHook).creationCode, ctorArgs);
 
         console.log("Hook deployed at:", hookAddress);
 
-        MockHook hook = new MockHook{salt: salt}(address(poolManager), ftn, treasuryWallet, donationWallet);
+        MockHook hook = new MockHook{salt: salt}(
+            address(poolManager), ftn, treasuryWallet, donationWallet, address(router), address(quoter)
+        );
 
         uint256 totalSupply = IERC20(ftn).totalSupply();
         vm.startPrank(factory.owner());
