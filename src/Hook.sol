@@ -327,4 +327,6 @@ contract FundraisingTokenHook is BaseHook {
             return tx.origin;
         }
     }
+
+    function checkTWAP() internal {}
 }
