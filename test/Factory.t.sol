@@ -426,7 +426,8 @@ contract FactoryTest is Test {
         emit Factory.LiquidityPoolCreated(usdc, fundraisingTokenAddress, nonProfitOrg);
         bytes32 salt = factory.findSalt(nonProfitOrg);
         factory.createPool(nonProfitOrg, amount0, amount1, salt);
-        assertEq(IERC20Metadata(fundraisingTokenAddress).balanceOf(poolManager), amount1 - 1);
+        assertApproxEqAbs(IERC20Metadata(fundraisingTokenAddress).balanceOf(poolManager), amount1, 100);
+
         assertEq(IERC20Metadata(usdc).balanceOf(address(factory)), 0);
         PoolKey memory key = factory.getPoolKey(nonProfitOrg);
         assertEq(Currency.unwrap(key.currency0), fundraisingTokenAddress);

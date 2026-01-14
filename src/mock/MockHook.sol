@@ -13,10 +13,17 @@ contract MockHook is FundraisingTokenHook {
         address _treasuryAddress,
         address _donationAddress,
         address _routerAddress,
-        address _quoterAddress
+        address _quoterAddress,
+        address _stateViewAddress
     )
         FundraisingTokenHook(
-            _poolManager, _fundraisingTokenAddress, _treasuryAddress, _donationAddress, _routerAddress, _quoterAddress
+            _poolManager,
+            _fundraisingTokenAddress,
+            _treasuryAddress,
+            _donationAddress,
+            _routerAddress,
+            _quoterAddress,
+            _stateViewAddress
         )
     {}
 

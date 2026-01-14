@@ -18,6 +18,7 @@ import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.so
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IStateView} from "v4-periphery/src/interfaces/IStateView.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {console} from "forge-std/console.sol";
 
 /**
  * @title FundraisingTokenHook
@@ -139,7 +140,7 @@ contract FundraisingTokenHook is BaseHook {
         return Hooks.Permissions({
             beforeInitialize: true,
             afterInitialize: true,
-            beforeAddLiquidity: false,
+            beforeAddLiquidity: true,
             afterAddLiquidity: false,
             beforeRemoveLiquidity: false,
             afterRemoveLiquidity: false,
@@ -158,10 +159,11 @@ contract FundraisingTokenHook is BaseHook {
         // This is to limit the fragmentation of pools using this oracle hook. In other words,
         // there may only be one pool per pair of tokens that use this hook. The tick spacing is set to the maximum
         // because we only allow max range liquidity in this pool.
+        console.log(key.tickSpacing);
         if (key.fee != 0 || key.tickSpacing != TickMath.MAX_TICK_SPACING) {
             revert OnlyOneOraclePoolAllowed();
         }
-        return BaseHook.beforeAddLiquidity.selector;
+        return BaseHook.beforeInitialize.selector;
     }
 
     function _afterInitialize(address, PoolKey calldata key, uint160, int24 tick)
@@ -190,6 +192,22 @@ contract FundraisingTokenHook is BaseHook {
         (states[id].index, states[id].cardinality) = observations[id].write(
             states[id].index, _blockTimestamp(), tick, liquidity, states[id].cardinality, states[id].cardinalityNext
         );
+    }
+
+    function observe(PoolKey calldata key, uint32[] calldata secondsAgos)
+        external
+        view
+        returns (int48[] memory tickCumulatives, uint144[] memory secondsPerLiquidityCumulativeX128s)
+    {
+        bytes32 id = PoolId.unwrap(key.toId());
+
+        ObservationState memory state = states[id];
+
+        (, int24 tick,,) = IStateView(stateView).getSlot0(key.toId());
+
+        uint128 liquidity = IStateView(stateView).getLiquidity(key.toId());
+
+        return observations[id].observe(_blockTimestamp(), secondsAgos, tick, state.index, liquidity, state.cardinality);
     }
 
     function _beforeAddLiquidity(address, PoolKey calldata key, ModifyLiquidityParams calldata params, bytes calldata)

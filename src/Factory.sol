@@ -408,8 +408,9 @@ contract Factory is Ownable2StepUpgradeable {
 
         // transfer assets to this contract;
 
-        PoolKey memory pool =
-            PoolKey({currency0: currency0, currency1: currency1, fee: 0, tickSpacing: defaultTickSpacing, hooks: hook});
+        PoolKey memory pool = PoolKey({
+            currency0: currency0, currency1: currency1, fee: 0, tickSpacing: TickMath.MAX_TICK_SPACING, hooks: hook
+        });
 
         params[0] = abi.encodeWithSelector(IPoolInitializer_v4.initializePool.selector, pool, _startingPrice);
         params[1] = getModifyLiqiuidityParams(pool, amount0, amount1, _startingPrice);
@@ -659,7 +660,10 @@ contract Factory is Ownable2StepUpgradeable {
             params[2] = abi.encode(address(0), owner()); // only for ETH liquidity positions
         }
 
-        (int24 tickLower, int24 tickUpper) = Helper.getMinAndMaxTick(_startingPrice, defaultTickSpacing);
+        int24 maxTickSpacing = TickMath.MAX_TICK_SPACING;
+
+        int24 tickLower = TickMath.minUsableTick(maxTickSpacing);
+        int24 tickUpper = TickMath.maxUsableTick(maxTickSpacing);
 
         uint160 sqrtPriceAX96 = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceBX96 = TickMath.getSqrtPriceAtTick(tickUpper);
@@ -695,8 +699,9 @@ contract Factory is Ownable2StepUpgradeable {
      */
     function findSalt(address _nonProfitOrgOwner) external view nonZeroAddress(_nonProfitOrgOwner) returns (bytes32) {
         uint160 flags = uint160(
-            Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG
-                | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+                | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
+                | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         );
 
         FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
