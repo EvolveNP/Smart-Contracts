@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.26;
 
 /// @title Oracle
 /// @notice Provides price and liquidity data useful for a wide variety of system designs
@@ -304,15 +304,14 @@ library TruncatedOracle {
                 return (
                     beforeOrAt.tickCumulative
                         + ((atOrAfter.tickCumulative - beforeOrAt.tickCumulative) / int48(uint48(observationTimeDelta)))
-                            * int48(uint48(targetDelta)),
+                        * int48(uint48(targetDelta)),
                     beforeOrAt.secondsPerLiquidityCumulativeX128
                         + uint144(
-                            (
-                                uint256(
-                                    atOrAfter.secondsPerLiquidityCumulativeX128
-                                        - beforeOrAt.secondsPerLiquidityCumulativeX128
-                                ) * targetDelta
-                            ) / observationTimeDelta
+                            (uint256(
+                                        atOrAfter.secondsPerLiquidityCumulativeX128
+                                            - beforeOrAt.secondsPerLiquidityCumulativeX128
+                                    )
+                                    * targetDelta) / observationTimeDelta
                         )
                 );
             }

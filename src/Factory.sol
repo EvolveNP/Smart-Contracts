@@ -397,7 +397,13 @@ contract Factory is Ownable2StepUpgradeable {
 
         // deploy hook
         IHooks hook = new FundraisingTokenHook{salt: _salt}(
-            poolManager, _protocol.fundraisingToken, _protocol.treasuryWallet, _protocol.donationWallet, router, quoter
+            poolManager,
+            _protocol.fundraisingToken,
+            _protocol.treasuryWallet,
+            _protocol.donationWallet,
+            router,
+            quoter,
+            stateView
         );
 
         // transfer assets to this contract;
@@ -689,8 +695,8 @@ contract Factory is Ownable2StepUpgradeable {
      */
     function findSalt(address _nonProfitOrgOwner) external view nonZeroAddress(_nonProfitOrgOwner) returns (bytes32) {
         uint160 flags = uint160(
-            Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
-                | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+            Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG
+                | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         );
 
         FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
@@ -699,7 +705,13 @@ contract Factory is Ownable2StepUpgradeable {
 
         // Mine a salt that will produce a hook address with the correct flags
         bytes memory constructorArgs = abi.encode(
-            poolManager, protocol.fundraisingToken, protocol.treasuryWallet, protocol.donationWallet, router, quoter
+            poolManager,
+            protocol.fundraisingToken,
+            protocol.treasuryWallet,
+            protocol.donationWallet,
+            router,
+            quoter,
+            stateView
         );
         (, bytes32 salt) =
             HookMiner.find(address(this), flags, type(FundraisingTokenHook).creationCode, constructorArgs);
