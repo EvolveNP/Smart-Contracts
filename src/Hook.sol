@@ -119,6 +119,27 @@ contract FundraisingTokenHook is BaseHook {
         stateView = _stateView;
     }
 
+    function observe(PoolKey calldata key, uint32[] calldata secondsAgos)
+        external
+        view
+        returns (int48[] memory tickCumulatives, uint144[] memory secondsPerLiquidityCumulativeX128s)
+    {
+        bytes32 id = PoolId.unwrap(key.toId());
+
+        ObservationState memory state = states[id];
+
+        int24 tick = getCurrentTick(key);
+
+        uint128 liquidity = IStateView(stateView).getLiquidity(key.toId());
+
+        return observations[id].observe(_blockTimestamp(), secondsAgos, tick, state.index, liquidity, state.cardinality);
+    }
+
+    function getCurrentTick(PoolKey calldata key) public view returns (int24) {
+        (, int24 tick,,) = IStateView(stateView).getSlot0(key.toId());
+        return tick;
+    }
+
     /**
      * @notice Defines the hook permissions required by this contract for Uniswap V4 integration.
      * @dev
@@ -177,39 +198,6 @@ contract FundraisingTokenHook is BaseHook {
         return BaseHook.afterInitialize.selector;
     }
 
-    function _blockTimestamp() internal view virtual returns (uint32) {
-        return uint32(block.timestamp);
-    }
-
-    /// @dev Called before any action that potentially modifies pool price or liquidity, such as swap or modify position
-    function _updatePool(PoolKey calldata key) private {
-        bytes32 id = PoolId.unwrap(key.toId());
-
-        (, int24 tick,,) = IStateView(stateView).getSlot0(key.toId());
-
-        uint128 liquidity = IStateView(stateView).getLiquidity(key.toId());
-
-        (states[id].index, states[id].cardinality) = observations[id].write(
-            states[id].index, _blockTimestamp(), tick, liquidity, states[id].cardinality, states[id].cardinalityNext
-        );
-    }
-
-    function observe(PoolKey calldata key, uint32[] calldata secondsAgos)
-        external
-        view
-        returns (int48[] memory tickCumulatives, uint144[] memory secondsPerLiquidityCumulativeX128s)
-    {
-        bytes32 id = PoolId.unwrap(key.toId());
-
-        ObservationState memory state = states[id];
-
-        (, int24 tick,,) = IStateView(stateView).getSlot0(key.toId());
-
-        uint128 liquidity = IStateView(stateView).getLiquidity(key.toId());
-
-        return observations[id].observe(_blockTimestamp(), secondsAgos, tick, state.index, liquidity, state.cardinality);
-    }
-
     function _beforeAddLiquidity(address, PoolKey calldata key, ModifyLiquidityParams calldata params, bytes calldata)
         internal
         virtual
@@ -222,7 +210,9 @@ contract FundraisingTokenHook is BaseHook {
             params.tickLower != TickMath.minUsableTick(maxTickSpacing)
                 || params.tickUpper != TickMath.maxUsableTick(maxTickSpacing)
         ) revert OraclePositionsMustBeFullRange();
+
         _updatePool(key);
+
         return BaseHook.beforeAddLiquidity.selector;
     }
 
@@ -439,5 +429,20 @@ contract FundraisingTokenHook is BaseHook {
         }
     }
 
-    function checkTWAP() internal {}
+    /// @dev Called before any action that potentially modifies pool price or liquidity, such as swap or modify position
+    function _updatePool(PoolKey calldata key) private {
+        bytes32 id = PoolId.unwrap(key.toId());
+
+        (, int24 tick,,) = IStateView(stateView).getSlot0(key.toId());
+
+        uint128 liquidity = IStateView(stateView).getLiquidity(key.toId());
+
+        (states[id].index, states[id].cardinality) = observations[id].write(
+            states[id].index, _blockTimestamp(), tick, liquidity, states[id].cardinality, states[id].cardinalityNext
+        );
+    }
+
+    function _blockTimestamp() internal view virtual returns (uint32) {
+        return uint32(block.timestamp);
+    }
 }

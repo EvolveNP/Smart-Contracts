@@ -323,11 +323,14 @@ contract DonationWalletTest is Test {
 
         uint256 donationBalance = IERC20(fundraisingTokenAddress).balanceOf(_donationWallet);
         assertGt(donationBalance, 0);
+        vm.warp(30 minutes);
         address owner = DonationWallet(payable(_donationWallet)).owner();
         DonationWallet(payable(_donationWallet)).performUpkeep(bytes(""));
         vm.stopPrank();
         assertEq(IERC20(fundraisingTokenAddress).balanceOf(_donationWallet), 0);
         assertGt(IERC20(underlyingAddress).balanceOf(owner), 0);
+        vm.warp(1 hours);
+        DonationWallet(payable(_donationWallet)).checkPriceDevation();
     }
 
     function testReceive() public {

@@ -8,6 +8,8 @@ import {Swap} from "./abstracts/Swap.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IHook} from "./interfaces/IHook.sol";
+import "forge-std/console.sol";
 
 /**
  * @title DonationWallet
@@ -43,6 +45,11 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
     address public factoryAddress; // The address of the factory contract
     address public registryAddress; // Address of the registry contract
 
+    address public hookAddress; // Address of the hook contract
+    int24 public constant maxTickDeviation = 198; // Maximum tick deviation for swaps 2%
+    uint32 public constant oracleObservationInterval = 1800; // Oracle observation interval in seconds -> 30 mins
+
+    uint256 lastUpkeepTimestamp;
     /**
      * @notice This event is used to log successful transfers to non-profit organizations.
      * @param recipient The address of the non-profit receiving funds.
@@ -57,6 +64,8 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      * @dev Emitted when the contract is paused or unpaused.
      */
     event Paused(bool pause);
+
+    event SwapSkipped(int24 priceDevation);
 
     modifier onlyRegistry() {
         if (msg.sender != registryAddress) revert NotRegistry();
@@ -98,6 +107,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         owner = _owner;
         factoryAddress = _factoryAddress;
         fundraisingToken = IERC20(_fundraisingToken);
+        lastUpkeepTimestamp = block.timestamp + oracleObservationInterval;
     }
 
     /**
@@ -107,7 +117,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      * @return performData Additional data to pass to `performUpkeep`, empty here.
      */
     function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData) {
-        upkeepNeeded = IERC20(fundraisingToken).balanceOf(address(this)) > 0;
+        upkeepNeeded = IERC20(fundraisingToken).balanceOf(address(this)) > 0 && (block.timestamp >= lastUpkeepTimestamp);
 
         performData = bytes("");
     }
@@ -119,6 +129,12 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      *      Restricted to be called only by the authorized registry contract.
      */
     function performUpkeep(bytes calldata) external onlyRegistry {
+        int24 priceDeviation = checkPriceDevation();
+        if (priceDeviation > maxTickDeviation) {
+            lastUpkeepTimestamp = block.timestamp + oracleObservationInterval;
+            emit SwapSkipped(priceDeviation);
+            return;
+        }
         swapFundraisingToken();
     }
 
@@ -138,6 +154,10 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      */
     function changeOwner(address _newNonProfitOrgOwner) external onlyFactory {
         owner = _newNonProfitOrgOwner;
+    }
+
+    function setHookAddress(address _hookAddress) external onlyFactory {
+        hookAddress = _hookAddress;
     }
 
     /**
@@ -172,5 +192,27 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
                 : IERC20(currency0).safeTransfer(owner, amountOut);
         }
         emit FundsTransferredToNonProfit(owner, amountOut);
+    }
+
+    function checkPriceDevation() public view returns (int24) {
+        IHook hook = IHook(hookAddress);
+        PoolKey memory key = IFactory(factoryAddress).getPoolKey(owner);
+        uint32[] memory secondsAgos = new uint32[](2);
+        secondsAgos[0] = oracleObservationInterval;
+        secondsAgos[1] = 0;
+        (int48[] memory tickCumulatives,) = hook.observe(key, secondsAgos);
+
+        // Calculate the average tick over the last 30 minutes
+        int56 tickCumulativeDelta = tickCumulatives[1] - tickCumulatives[0];
+        int24 averageTick30Min = int24(tickCumulativeDelta / int56(uint56(1800)));
+
+        // Get current instantaneous tick from the pool or hook
+        int24 currentTick = IHook(hookAddress).getCurrentTick(key);
+
+        // Calculate absolute tick deviation
+        int24 tickDeviation =
+            currentTick > averageTick30Min ? currentTick - averageTick30Min : averageTick30Min - currentTick;
+
+        return tickDeviation;
     }
 }

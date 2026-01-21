@@ -436,6 +436,10 @@ contract Factory is Ownable2StepUpgradeable {
         poolKeys[_owner] = pool;
 
         _positionManager.multicall{value: valueToPass}(params);
+        // set hook address in donation wallet
+        DonationWallet donationWallet = DonationWallet(payable(_protocol.donationWallet));
+        // set hook address
+        donationWallet.setHookAddress(address(hook));
 
         emit LiquidityPoolCreated(_protocol.underlyingAddress, _protocol.fundraisingToken, _owner);
     }

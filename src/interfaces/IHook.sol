@@ -8,4 +8,6 @@ interface IHook {
         external
         view
         returns (int48[] memory tickCumulatives, uint144[] memory secondsPerLiquidityCumulativeX128s);
+
+    function getCurrentTick(PoolKey calldata key) external view returns (int24);
 }
