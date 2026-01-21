@@ -455,6 +455,7 @@ contract FactoryTest is Test {
         bytes memory performData = abi.encode(true, false);
         vm.stopPrank();
         vm.startPrank(registryAddress);
+        vm.warp(30 minutes);
         treasury.performUpkeep(performData);
 
         assert(IERC20Metadata(fundraisingTokenAddress).balanceOf(donationWalletAddress) > 0);

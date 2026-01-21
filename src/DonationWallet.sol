@@ -9,7 +9,6 @@ import {IFactory} from "./interfaces/IFactory.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IHook} from "./interfaces/IHook.sol";
-import "forge-std/console.sol";
 
 /**
  * @title DonationWallet
