@@ -401,20 +401,34 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         // Hook flags
         uint160 flags = uint160(
-            Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
+            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+                | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
                 | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         );
 
         // Deploy the hook via HookMiner
-        bytes memory ctorArgs =
-            abi.encode(address(poolManager), ftn, treasuryWallet, donationWallet, address(router), address(quoter));
+        bytes memory ctorArgs = abi.encode(
+            address(poolManager),
+            ftn,
+            treasuryWallet,
+            donationWallet,
+            address(router),
+            address(quoter),
+            factory.stateView()
+        );
 
         (address hookAddress, bytes32 salt) = HookMiner.find(USDC_WHALE, flags, type(MockHook).creationCode, ctorArgs);
 
         console.log("Hook deployed at:", hookAddress);
 
         MockHook hook = new MockHook{salt: salt}(
-            address(poolManager), ftn, treasuryWallet, donationWallet, address(router), address(quoter)
+            address(poolManager),
+            ftn,
+            treasuryWallet,
+            donationWallet,
+            address(router),
+            address(quoter),
+            address(factory.stateView())
         );
 
         // Selling path → negative amountSpecified
@@ -445,20 +459,34 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         // Hook flags
         uint160 flags = uint160(
-            Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
+            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+                | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
                 | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         );
 
         // Deploy the hook via HookMiner
-        bytes memory ctorArgs =
-            abi.encode(address(poolManager), ftn, treasuryWallet, donationWallet, address(router), address(quoter));
+        bytes memory ctorArgs = abi.encode(
+            address(poolManager),
+            ftn,
+            treasuryWallet,
+            donationWallet,
+            address(router),
+            address(quoter),
+            factory.stateView()
+        );
 
         (address hookAddress, bytes32 salt) = HookMiner.find(USDC_WHALE, flags, type(MockHook).creationCode, ctorArgs);
 
         console.log("Hook deployed at:", hookAddress);
 
         MockHook hook = new MockHook{salt: salt}(
-            address(poolManager), ftn, treasuryWallet, donationWallet, address(router), address(quoter)
+            address(poolManager),
+            ftn,
+            treasuryWallet,
+            donationWallet,
+            address(router),
+            address(quoter),
+            address(factory.stateView())
         );
 
         uint256 totalSupply = IERC20(ftn).totalSupply();

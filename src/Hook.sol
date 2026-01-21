@@ -13,6 +13,11 @@ import {BeforeSwapDelta, toBeforeSwapDelta} from "@uniswap/v4-core/src/types/Bef
 import {ITreasury} from "./interfaces/ITreasury.sol";
 import {IDonationWallet} from "./interfaces/IDonationWallet.sol";
 import {IMsgSender} from "v4-periphery/src/interfaces/IMsgSender.sol";
+import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {IStateView} from "v4-periphery/src/interfaces/IStateView.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {TruncatedOracle} from "@uniswap/v4-periphery-trunc/contracts/libraries/TruncatedOracle.sol";
 
 /**
  * @title FundraisingTokenHook
@@ -23,6 +28,8 @@ import {IMsgSender} from "v4-periphery/src/interfaces/IMsgSender.sol";
  * to a treasury address. Supports launch protection with block and time based holds and per-wallet cooldowns.
  */
 contract FundraisingTokenHook is BaseHook {
+    using TruncatedOracle for TruncatedOracle.Observation[65535];
+
     /**
      * @notice Errors thrown by the contract
      */
@@ -31,6 +38,15 @@ contract FundraisingTokenHook is BaseHook {
     error AmountGreaterThanMaxBuyAmount();
     error CoolDownPeriodNotPassed();
     error FeeToLarge();
+
+    /// @notice Oracle pools do not have fees because they exist to serve as an oracle for a pair of tokens
+    error OnlyOneOraclePoolAllowed();
+
+    /// @notice Oracle positions must be full range
+    error OraclePositionsMustBeFullRange();
+
+    /// @notice Oracle pools must have liquidity locked so that they cannot become more susceptible to price manipulation
+    error OraclePoolMustLockLiquidity();
 
     uint256 internal launchTimestamp; // The timestamp when the token was launched
     uint256 internal constant perWalletCoolDownPeriod = 1 minutes;
@@ -45,12 +61,26 @@ contract FundraisingTokenHook is BaseHook {
     uint256 public constant maximumThreshold = 30e16; // The maximum threshold for the liquidity pool 30% = 30e16
     address public router; // router address used to swap in treasury and donation wallet
     address public quoter; // quoter address used to swap in treasury and donation wallet
-
+    address public stateView; // state view address used to get pool state
     mapping(address => uint256) public lastBuyTimestamp; // The last buy timestamp for each address
 
     // 2% expressed with 18-decimal denominator
     uint256 public constant TAX_FEE_PERCENTAGE = 1e16; // 0.01 * 1e18 = 1e16 (1%)
     uint256 public constant TAX_FEE_DENOMINATOR = 1e18; // Denominator for tax fee calculation (1e18)
+
+    /// @member index The index of the last written observation for the pool
+    /// @member cardinality The cardinality of the observations array for the pool
+    /// @member cardinalityNext The cardinality target of the observations array for the pool, which will replace cardinality when enough observations are written
+    struct ObservationState {
+        uint16 index;
+        uint16 cardinality;
+        uint16 cardinalityNext;
+    }
+
+    /// @notice The list of observations for a given pool ID
+    mapping(bytes32 => TruncatedOracle.Observation[65535]) public observations;
+    /// @notice The current observation array state for the given pool ID
+    mapping(bytes32 => ObservationState) public states;
 
     /**
      * @notice Initializes the FundraisingTokenHook contract with the PoolManager and core protocol addresses.
@@ -75,7 +105,8 @@ contract FundraisingTokenHook is BaseHook {
         address _treasuryAddress,
         address _donationAddress,
         address _router,
-        address _quoter
+        address _quoter,
+        address _stateView
     ) BaseHook(IPoolManager(_poolManager)) {
         fundraisingTokenAddress = _fundraisingTokenAddress;
         launchTimestamp = block.timestamp;
@@ -84,6 +115,28 @@ contract FundraisingTokenHook is BaseHook {
         donationAddress = _donationAddress;
         router = _router;
         quoter = _quoter;
+        stateView = _stateView;
+    }
+
+    function observe(PoolKey calldata key, uint32[] calldata secondsAgos)
+        external
+        view
+        returns (int48[] memory tickCumulatives, uint144[] memory secondsPerLiquidityCumulativeX128s)
+    {
+        bytes32 id = PoolId.unwrap(key.toId());
+
+        ObservationState memory state = states[id];
+
+        int24 tick = getCurrentTick(key);
+
+        uint128 liquidity = IStateView(stateView).getLiquidity(key.toId());
+
+        return observations[id].observe(_blockTimestamp(), secondsAgos, tick, state.index, liquidity, state.cardinality);
+    }
+
+    function getCurrentTick(PoolKey calldata key) public view returns (int24) {
+        (, int24 tick,,) = IStateView(stateView).getSlot0(key.toId());
+        return tick;
     }
 
     /**
@@ -105,9 +158,9 @@ contract FundraisingTokenHook is BaseHook {
      */
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
-            beforeInitialize: false,
-            afterInitialize: false,
-            beforeAddLiquidity: false,
+            beforeInitialize: true,
+            afterInitialize: true,
+            beforeAddLiquidity: true,
             afterAddLiquidity: false,
             beforeRemoveLiquidity: false,
             afterRemoveLiquidity: false,
@@ -120,6 +173,45 @@ contract FundraisingTokenHook is BaseHook {
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
         });
+    }
+
+    function _beforeInitialize(address, PoolKey calldata key, uint160) internal virtual override returns (bytes4) {
+        // This is to limit the fragmentation of pools using this oracle hook. In other words,
+        // there may only be one pool per pair of tokens that use this hook. The tick spacing is set to the maximum
+        // because we only allow max range liquidity in this pool.
+        if (key.fee != 0 || key.tickSpacing != TickMath.MAX_TICK_SPACING) {
+            revert OnlyOneOraclePoolAllowed();
+        }
+        return BaseHook.beforeInitialize.selector;
+    }
+
+    function _afterInitialize(address, PoolKey calldata key, uint160, int24 tick)
+        internal
+        virtual
+        override
+        returns (bytes4)
+    {
+        bytes32 id = keccak256(abi.encode(key));
+        (states[id].cardinality, states[id].cardinalityNext) = observations[id].initialize(_blockTimestamp(), tick);
+        return BaseHook.afterInitialize.selector;
+    }
+
+    function _beforeAddLiquidity(address, PoolKey calldata key, ModifyLiquidityParams calldata params, bytes calldata)
+        internal
+        virtual
+        override
+        returns (bytes4)
+    {
+        if (params.liquidityDelta < 0) revert OraclePoolMustLockLiquidity();
+        int24 maxTickSpacing = TickMath.MAX_TICK_SPACING;
+        if (
+            params.tickLower != TickMath.minUsableTick(maxTickSpacing)
+                || params.tickUpper != TickMath.maxUsableTick(maxTickSpacing)
+        ) revert OraclePositionsMustBeFullRange();
+
+        _updatePool(key);
+
+        return BaseHook.beforeAddLiquidity.selector;
     }
 
     /**
@@ -185,6 +277,7 @@ contract FundraisingTokenHook is BaseHook {
             int128(int256(feeAmount)), // Specified delta (fee amount)
             0 // Unspecified delta (no change)
         );
+        _updatePool(key);
         return (BaseHook.beforeSwap.selector, returnDelta, 0);
     }
 
@@ -242,7 +335,9 @@ contract FundraisingTokenHook is BaseHook {
             // use provided sender (not tx.origin)
             isTransferBlocked(caller, _amountOut);
 
-            if (block.timestamp < launchTimestamp + timeToHold) lastBuyTimestamp[caller] = block.timestamp;
+            if (block.timestamp < launchTimestamp + timeToHold) {
+                lastBuyTimestamp[caller] = block.timestamp;
+            }
 
             if (isTaxCutEnabled) {
                 feeAmount = (uint256(_amountOut) * TAX_FEE_PERCENTAGE) / TAX_FEE_DENOMINATOR;
@@ -272,7 +367,9 @@ contract FundraisingTokenHook is BaseHook {
      */
     function isTransferBlocked(address _account, int256 _amount) internal view {
         // Block transfers during launch protection (by block count)
-        if (block.number < launchBlock + blocksToHold) revert BlockToHoldNotPassed();
+        if (block.number < launchBlock + blocksToHold) {
+            revert BlockToHoldNotPassed();
+        }
 
         if (block.timestamp < launchTimestamp + timeToHold) {
             // Block transfers if within time to hold after launch
@@ -281,7 +378,9 @@ contract FundraisingTokenHook is BaseHook {
             // maxBuySize is stored scaled by 1e18, so multiply by totalSupply and divide by 1e18
             uint256 _maxBuySize = (IERC20(fundraisingTokenAddress).totalSupply() * maxBuySize) / 1e18;
 
-            if (uint256(_amount) > _maxBuySize) revert AmountGreaterThanMaxBuyAmount();
+            if (uint256(_amount) > _maxBuySize) {
+                revert AmountGreaterThanMaxBuyAmount();
+            }
 
             // Block transfers if within cooldown
             if (lastBuy != 0 && block.timestamp < lastBuy + perWalletCoolDownPeriod) revert CoolDownPeriodNotPassed();
@@ -326,5 +425,22 @@ contract FundraisingTokenHook is BaseHook {
             // and we incur tax for all swap transactions initiated from other routers
             return tx.origin;
         }
+    }
+
+    /// @dev Called before any action that potentially modifies pool price or liquidity, such as swap or modify position
+    function _updatePool(PoolKey calldata key) private {
+        bytes32 id = PoolId.unwrap(key.toId());
+
+        (, int24 tick,,) = IStateView(stateView).getSlot0(key.toId());
+
+        uint128 liquidity = IStateView(stateView).getLiquidity(key.toId());
+
+        (states[id].index, states[id].cardinality) = observations[id].write(
+            states[id].index, _blockTimestamp(), tick, liquidity, states[id].cardinality, states[id].cardinalityNext
+        );
+    }
+
+    function _blockTimestamp() internal view virtual returns (uint32) {
+        return uint32(block.timestamp);
     }
 }

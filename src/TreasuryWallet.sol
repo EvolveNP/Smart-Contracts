@@ -367,7 +367,11 @@ contract TreasuryWallet is AutomationCompatibleInterface, Swap {
 
         (uint160 sqrtPriceX96,,,) = IStateView(stateView).getSlot0(key.toId());
 
-        (int24 tickLower, int24 tickUpper) = Helper.getMinAndMaxTick(sqrtPriceX96, tickSpacing);
+        int24 maxTickSpacing = TickMath.MAX_TICK_SPACING;
+
+        //(int24 tickLower, int24 tickUpper) = Helper.getMinAndMaxTick(sqrtPriceX96, tickSpacing);
+        int24 tickLower = TickMath.minUsableTick(maxTickSpacing);
+        int24 tickUpper = TickMath.maxUsableTick(maxTickSpacing);
 
         uint160 sqrtPriceAX96 = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceBX96 = TickMath.getSqrtPriceAtTick(tickUpper);

@@ -166,6 +166,7 @@ contract DonationWalletTest is Test {
     function testCheckUpKeepReturnsTrueIfFundraisingTokenAvailable() public {
         vm.startPrank(address(10));
         FundRaisingToken(fundraisingToken).transfer(address(donationWallet), 1e6);
+        vm.warp(31 minutes);
         (bool upkeepNeeded,) = donationWallet.checkUpkeep(bytes(""));
         assertEq(upkeepNeeded, true);
     }
@@ -198,11 +199,13 @@ contract DonationWalletTest is Test {
         bytes memory performData = abi.encode(true, false);
         address _registryAddress = treasuryWallet.registryAddress();
         vm.startPrank(_registryAddress);
+        vm.warp(30 minutes);
         treasuryWallet.performUpkeep(performData);
 
         uint256 donationBalance = IERC20(fundraisingTokenAddress).balanceOf(_donationWallet);
         assertGt(donationBalance, 0);
         address owner = DonationWallet(payable(_donationWallet)).owner();
+        vm.warp(30 minutes);
         DonationWallet(payable(_donationWallet)).performUpkeep(bytes(""));
         vm.stopPrank();
         assertEq(IERC20(fundraisingTokenAddress).balanceOf(_donationWallet), 0);
@@ -230,11 +233,13 @@ contract DonationWalletTest is Test {
         address _registryAddress = treasuryWallet.registryAddress();
         vm.startPrank(_registryAddress);
         bytes memory performData = abi.encode(true, false);
+        vm.warp(30 minutes);
         treasuryWallet.performUpkeep(performData);
 
         uint256 donationBalance = IERC20(fundraisingTokenAddress).balanceOf(_donationWallet);
         assertGt(donationBalance, 0);
         address owner = DonationWallet(payable(_donationWallet)).owner();
+        vm.warp(30 minutes);
         DonationWallet(payable(_donationWallet)).performUpkeep(bytes(""));
         vm.stopPrank();
         assertEq(IERC20(fundraisingTokenAddress).balanceOf(_donationWallet), 0);
@@ -292,6 +297,7 @@ contract DonationWalletTest is Test {
         assertGt(donationBalance, 0);
 
         vm.expectRevert(DonationWallet.TransferFailed.selector);
+        vm.warp(30 minutes);
         DonationWallet(payable(_donationWallet)).performUpkeep(bytes(""));
         vm.stopPrank();
     }
@@ -323,11 +329,14 @@ contract DonationWalletTest is Test {
 
         uint256 donationBalance = IERC20(fundraisingTokenAddress).balanceOf(_donationWallet);
         assertGt(donationBalance, 0);
+        vm.warp(30 minutes);
         address owner = DonationWallet(payable(_donationWallet)).owner();
         DonationWallet(payable(_donationWallet)).performUpkeep(bytes(""));
         vm.stopPrank();
         assertEq(IERC20(fundraisingTokenAddress).balanceOf(_donationWallet), 0);
         assertGt(IERC20(underlyingAddress).balanceOf(owner), 0);
+        vm.warp(1 hours);
+        DonationWallet(payable(_donationWallet)).checkPriceDevation();
     }
 
     function testReceive() public {
