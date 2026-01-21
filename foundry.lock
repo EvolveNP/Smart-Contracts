@@ -37,5 +37,11 @@
   },
   "lib/v4-periphery": {
     "rev": "60cd93803ac2b7fa65fd6cd351fd5fd4cc8c9db5"
+  },
+  "lib/v4-periphery-truncated": {
+    "branch": {
+      "name": "trunc-oracle",
+      "rev": "2a25dae90d75e68195129951b244c9e3fd1bdd8c"
+    }
   }
 }

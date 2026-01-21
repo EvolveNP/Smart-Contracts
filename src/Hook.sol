@@ -13,12 +13,11 @@ import {BeforeSwapDelta, toBeforeSwapDelta} from "@uniswap/v4-core/src/types/Bef
 import {ITreasury} from "./interfaces/ITreasury.sol";
 import {IDonationWallet} from "./interfaces/IDonationWallet.sol";
 import {IMsgSender} from "v4-periphery/src/interfaces/IMsgSender.sol";
-import {TruncatedOracle} from "./libraries/TruncatedOracle.sol";
 import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IStateView} from "v4-periphery/src/interfaces/IStateView.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
-import {console} from "forge-std/console.sol";
+import {TruncatedOracle} from "@uniswap/v4-periphery-trunc/contracts/libraries/TruncatedOracle.sol";
 
 /**
  * @title FundraisingTokenHook
@@ -180,7 +179,6 @@ contract FundraisingTokenHook is BaseHook {
         // This is to limit the fragmentation of pools using this oracle hook. In other words,
         // there may only be one pool per pair of tokens that use this hook. The tick spacing is set to the maximum
         // because we only allow max range liquidity in this pool.
-        console.log(key.tickSpacing);
         if (key.fee != 0 || key.tickSpacing != TickMath.MAX_TICK_SPACING) {
             revert OnlyOneOraclePoolAllowed();
         }

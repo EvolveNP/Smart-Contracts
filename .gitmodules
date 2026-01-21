@@ -28,3 +28,7 @@
 [submodule "lib/prb-math"]
 	path = lib/prb-math
 	url = https://github.com/PaulRBerg/prb-math
+[submodule "lib/v4-periphery-truncated"]
+	path = lib/v4-periphery-truncated
+	url = https://github.com/Addis-Belete/v4-periphery-truncated
+	branch = trunc-oracle
