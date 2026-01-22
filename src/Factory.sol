@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.26;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmounts.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPermit2} from "lib/permit2/src/interfaces/IPermit2.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -16,13 +13,13 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IPoolInitializer_v4} from "@uniswap/v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
-import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {FundRaisingToken} from "./FundRaisingToken.sol";
 import {TreasuryWallet} from "./TreasuryWallet.sol";
 import {DonationWallet} from "./DonationWallet.sol";
 import {Helper} from "./libraries/Helper.sol";
-import {FundraisingTokenHook} from "./Hook.sol";
+import {IFactory} from "./interfaces/IFactory.sol";
+import {IHookDeployer} from "./interfaces/IHookDeployer.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
 /**
  * @title Factory Contract
@@ -31,8 +28,8 @@ import {FundraisingTokenHook} from "./Hook.sol";
  *      Manages deployment of DonationWallet, TreasuryWallet, and FundRaisingToken contracts,
  *      handles pool creation on Uniswap V4, emergency pause features, and registry management.
  */
-contract Factory is Ownable2StepUpgradeable {
-    using SafeERC20 for IERC20;
+contract Factory is Ownable2StepUpgradeable, IFactory {
+    using SafeERC20 for IERC20Metadata;
     /**
      * Errors
      */
@@ -52,29 +49,17 @@ contract Factory is Ownable2StepUpgradeable {
     error NotProtocolOwner();
     error DestinationAlreadyOccupied();
 
-    struct FundraisingProtocol {
-        address fundraisingToken; // The address of the fundraising token
-        address underlyingAddress; // The address of the underlying token (e.g., USDC, ETH)
-        address treasuryWallet; // the address of the treasury wallet
-        address donationWallet; // the address of the donation wallet
-        address hook; // The address of the hook
-        address owner; // the non profit org wallet address
-        bool isLPCreated; // whether the lp is created or not
-    }
-
-    uint256 public constant totalSupply = 1e9; // the total supply of fundraising token
-
     /**
      * @notice Mapping storing fundraising protocol details by non-profit owner address.
      * @dev Contains fundraising token, wallets, hook, owner, and LP creation state.
      */
-    mapping(address => FundraisingProtocol) public protocols;
+    mapping(address => FundraisingProtocol) internal protocols;
 
     /**
      * @notice Mapping storing Uniswap pool keys by owner.
      * @dev Used to quickly access pool details for a given non-profit owner.
      */
-    mapping(address => PoolKey) internal poolKeys;
+    mapping(address => PoolKey) public poolKeys;
 
     address public router; // The address of the uniswap universal router
     address public permit2; // The address of the uniswap permit2 contract
@@ -87,7 +72,7 @@ contract Factory is Ownable2StepUpgradeable {
     address public donationWalletBeacon; // donatation wallet beacon
     bool public pauseAll; // pause all functionalities for all available vaults
     address public admin; // The address of the admin that is used to call some functions via multisig
-
+    IHookDeployer public hookDeployer; // The address of the hook deployer contract
     /**
      *  @notice Emitted when a new fundraising vault is created.
      * @dev Contains the fundraising token, treasury wallet, donation wallet, and owner addresses.
@@ -216,7 +201,8 @@ contract Factory is Ownable2StepUpgradeable {
         address _admin,
         address _treasuryWalletBeacon,
         address _donationWalletBeacon,
-        address _stateView
+        address _stateView,
+        address _hookDeployer
     )
         external
         initializer
@@ -240,6 +226,7 @@ contract Factory is Ownable2StepUpgradeable {
         admin = _admin;
         quoter = _quoter;
         stateView = _stateView;
+        hookDeployer = IHookDeployer(_hookDeployer);
     }
 
     /**
@@ -286,7 +273,7 @@ contract Factory is Ownable2StepUpgradeable {
 
         // Deploy fundraising token
         FundRaisingToken fundraisingToken = new FundRaisingToken(
-            _tokenName, _tokenSymbol, _decimals, owner(), address(treasuryWallet), totalSupply * 10 ** _decimals
+            _tokenName, _tokenSymbol, _decimals, owner(), address(treasuryWallet), 1e9 * 10 ** _decimals
         );
 
         donationWallet.initialize(
@@ -377,12 +364,12 @@ contract Factory is Ownable2StepUpgradeable {
         uint256 amount1 = _amount1;
 
         if (_currency0 != address(0)) {
-            IERC20(_currency0).safeTransferFrom(msg.sender, address(this), amount0);
+            IERC20Metadata(_currency0).safeTransferFrom(msg.sender, address(this), amount0);
         } else {
             if (amount0 != msg.value) revert InvalidAmount0();
         }
 
-        IERC20(_currency1).safeTransferFrom(msg.sender, address(this), amount1);
+        IERC20Metadata(_currency1).safeTransferFrom(msg.sender, address(this), amount1);
 
         if (_currency0 > _currency1) {
             (_currency0, _currency1) = (_currency1, _currency0);
@@ -396,20 +383,25 @@ contract Factory is Ownable2StepUpgradeable {
         Currency currency1 = Currency.wrap(_currency1);
 
         // deploy hook
-        IHooks hook = new FundraisingTokenHook{salt: _salt}(
+        address hook = hookDeployer.deployHook(
             poolManager,
             _protocol.fundraisingToken,
             _protocol.treasuryWallet,
             _protocol.donationWallet,
             router,
             quoter,
-            stateView
+            stateView,
+            _salt
         );
 
         // transfer assets to this contract;
 
         PoolKey memory pool = PoolKey({
-            currency0: currency0, currency1: currency1, fee: 0, tickSpacing: TickMath.MAX_TICK_SPACING, hooks: hook
+            currency0: currency0,
+            currency1: currency1,
+            fee: 0,
+            tickSpacing: TickMath.MAX_TICK_SPACING,
+            hooks: IHooks(hook)
         });
 
         params[0] = abi.encodeWithSelector(IPoolInitializer_v4.initializePool.selector, pool, _startingPrice);
@@ -422,15 +414,15 @@ contract Factory is Ownable2StepUpgradeable {
 
         // ether is always currency0
         if (!pool.currency0.isAddressZero()) {
-            IERC20(_currency0).approve(address(permit2), amount0);
+            IERC20Metadata(_currency0).approve(address(permit2), amount0);
             IPermit2(permit2).approve(_currency0, positionManager, uint160(amount0), uint48(deadline));
         }
 
-        IERC20(_currency1).approve(address(permit2), amount1);
+        IERC20Metadata(_currency1).approve(address(permit2), amount1);
         IPermit2(permit2).approve(_currency1, positionManager, uint160(amount1), uint48(deadline));
 
         _protocol.isLPCreated = true;
-        _protocol.hook = address(hook);
+        _protocol.hook = hook;
 
         // store pool key for easy access
         poolKeys[_owner] = pool;
@@ -622,12 +614,10 @@ contract Factory is Ownable2StepUpgradeable {
         emit ProtocolOwnerChanged(msg.sender, newNonProfitOrgAddress);
     }
 
-    /**
-     * @notice Returns the PoolKey associated with a given owner address.
-     * @dev Retrieves the PoolKey struct from the mapping using the provided owner address.
-     * @param _owner The address of the pool owner whose PoolKey is to be retrieved.
-     * @return The PoolKey struct corresponding to the specified owner address.
-     */
+    function getProtocol(address _owner) external view returns (FundraisingProtocol memory) {
+        return protocols[_owner];
+    }
+
     function getPoolKey(address _owner) external view returns (PoolKey memory) {
         return poolKeys[_owner];
     }
@@ -683,47 +673,5 @@ contract Factory is Ownable2StepUpgradeable {
 
         return
             abi.encodeWithSelector(IPositionManager.modifyLiquidities.selector, abi.encode(actions, params), deadline);
-    }
-
-    /**
-     * @notice Computes and returns a CREATE2 salt that will produce a valid hook deployment address
-     *         matching the required Uniswap V4 hook flag bitmask for a specific non-profit protocol owner.
-     *
-     * @dev This function performs an off-chain-compatible deterministic salt search using
-     *      `HookMiner.find`. It does NOT deploy the hook contract — the returned salt must be supplied to
-     *       the deployment function that performs the actual CREATE2 contract creation.
-     *
-     *      The function reverts if no fundraising protocol has been initialized for the given owner.
-     *
-     * @param _nonProfitOrgOwner The address of the owner whose fundraising protocol configuration is used
-     *                           to build constructor arguments for salt mining.
-     *
-     * @return salt The computed CREATE2 salt that results in a hook address whose lower bits satisfy
-     *              the required Uniswap V4 hook flag constraints.
-     */
-    function findSalt(address _nonProfitOrgOwner) external view nonZeroAddress(_nonProfitOrgOwner) returns (bytes32) {
-        uint160 flags = uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-                | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
-                | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
-        );
-
-        FundraisingProtocol memory protocol = protocols[_nonProfitOrgOwner];
-
-        if (protocol.fundraisingToken == address(0)) revert ProtocolNotAvailable();
-
-        // Mine a salt that will produce a hook address with the correct flags
-        bytes memory constructorArgs = abi.encode(
-            poolManager,
-            protocol.fundraisingToken,
-            protocol.treasuryWallet,
-            protocol.donationWallet,
-            router,
-            quoter,
-            stateView
-        );
-        (, bytes32 salt) =
-            HookMiner.find(address(this), flags, type(FundraisingTokenHook).creationCode, constructorArgs);
-        return salt;
     }
 }

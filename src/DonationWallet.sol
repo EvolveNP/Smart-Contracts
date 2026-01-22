@@ -213,5 +213,6 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
             currentTick > averageTick30Min ? currentTick - averageTick30Min : averageTick30Min - currentTick;
 
         return tickDeviation;
+        // down side
     }
 }

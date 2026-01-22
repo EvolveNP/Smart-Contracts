@@ -18,6 +18,8 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {USDC} from "../src/mock/USDC.sol";
 import {V4Quoter} from "@uniswap/universal-router/lib/v4-periphery/src/lens/V4Quoter.sol";
+import {HookDeployer} from "../src/HookDeployer.sol";
+import {IFactory} from "./../src/interfaces/IFactory.sol";
 
 contract FactoryTest is Test {
     Factory public factory;
@@ -52,6 +54,7 @@ contract FactoryTest is Test {
     address public nonProfitOrg2 = address(0x27);
     address treasuryWalletBeacon;
     address donationWalletBeacon;
+    HookDeployer hookDeployer;
 
     function setUp() public {
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
@@ -68,6 +71,12 @@ contract FactoryTest is Test {
         quoter = address(new V4Quoter(IPoolManager(poolManager)));
         console.log(quoter, "quoter address");
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
+
+        address hookDeployerImplementation = address(new HookDeployer());
+        hookDeployer =
+            HookDeployer(address(new TransparentUpgradeableProxy(hookDeployerImplementation, msg.sender, bytes(""))));
+
+        hookDeployer.initialize(address(factory));
         factory.initialize(
             poolManager,
             positionManager,
@@ -77,14 +86,20 @@ contract FactoryTest is Test {
             admin,
             treasuryWalletBeacon,
             donationWalletBeacon,
-            stateView
+            stateView,
+            address(hookDeployer)
         );
 
         factory.createFundraisingVault("FundraisingToken", "FTN", usdc, nonProfitOrg);
 
         factory.createFundraisingVault("FundraisingToken", "FTN", address(0), nonProfitOrg2);
 
-        (fundraisingTokenAddress,, treasuryWalletAddress, donationWalletAddress,,,) = factory.protocols(nonProfitOrg);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(nonProfitOrg);
+
+        fundraisingTokenAddress = protocol.fundraisingToken;
+        treasuryWalletAddress = protocol.treasuryWallet;
+        donationWalletAddress = protocol.donationWallet;
+
         vm.stopPrank();
     }
 
@@ -100,7 +115,8 @@ contract FactoryTest is Test {
             admin,
             treasuryWalletBeacon,
             donationWalletBeacon,
-            stateView
+            stateView,
+            address(hookDeployer)
         );
     }
 
@@ -117,7 +133,8 @@ contract FactoryTest is Test {
             admin,
             treasuryWalletBeacon,
             donationWalletBeacon,
-            stateView
+            stateView,
+            address(hookDeployer)
         );
     }
 
@@ -134,7 +151,8 @@ contract FactoryTest is Test {
             admin,
             treasuryWalletBeacon,
             donationWalletBeacon,
-            stateView
+            stateView,
+            address(hookDeployer)
         );
     }
 
@@ -143,7 +161,16 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            poolManager, positionManager, router, permit2, quoter, admin, address(0), donationWalletBeacon, stateView
+            poolManager,
+            positionManager,
+            router,
+            permit2,
+            quoter,
+            admin,
+            address(0),
+            donationWalletBeacon,
+            stateView,
+            address(hookDeployer)
         );
     }
 
@@ -152,7 +179,16 @@ contract FactoryTest is Test {
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
         vm.expectRevert(Factory.ZeroAddress.selector);
         factory.initialize(
-            poolManager, positionManager, router, permit2, quoter, admin, treasuryWalletBeacon, address(0), stateView
+            poolManager,
+            positionManager,
+            router,
+            permit2,
+            quoter,
+            admin,
+            treasuryWalletBeacon,
+            address(0),
+            stateView,
+            address(hookDeployer)
         );
     }
 
@@ -169,7 +205,8 @@ contract FactoryTest is Test {
             admin,
             treasuryWalletBeacon,
             donationWalletBeacon,
-            stateView
+            stateView,
+            address(hookDeployer)
         );
     }
 
@@ -186,7 +223,8 @@ contract FactoryTest is Test {
             admin,
             treasuryWalletBeacon,
             donationWalletBeacon,
-            stateView
+            stateView,
+            address(hookDeployer)
         );
     }
 
@@ -203,7 +241,8 @@ contract FactoryTest is Test {
             admin,
             treasuryWalletBeacon,
             donationWalletBeacon,
-            stateView
+            stateView,
+            address(hookDeployer)
         );
     }
 
@@ -220,7 +259,8 @@ contract FactoryTest is Test {
             address(0),
             treasuryWalletBeacon,
             donationWalletBeacon,
-            stateView
+            stateView,
+            address(hookDeployer)
         );
     }
 
@@ -237,7 +277,8 @@ contract FactoryTest is Test {
             admin,
             treasuryWalletBeacon,
             donationWalletBeacon,
-            address(0)
+            address(0),
+            address(hookDeployer)
         );
     }
 
@@ -292,23 +333,22 @@ contract FactoryTest is Test {
     function testCreateFundraisingVaultAndEmitFundraisingVaultCreatedEvent() public {
         vm.prank(owner);
         factory.createFundraisingVault("TokenName", "TKN", usdc, address(30));
-        (address fundraisingToken,, address treasuryWallet, address donationWallet,,,) = factory.protocols(address(30));
-        assert(fundraisingToken != address(0));
-        assert(donationWallet != address(0));
-        assert(treasuryWallet != address(0));
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(address(30));
+        assert(protocol.fundraisingToken != address(0));
+        assert(protocol.donationWallet != address(0));
+        assert(protocol.treasuryWallet != address(0));
 
-        FundRaisingToken token = FundRaisingToken(fundraisingToken);
+        FundRaisingToken token = FundRaisingToken(protocol.fundraisingToken);
         assertEq(token.name(), "TokenName");
         assertEq(token.symbol(), "TKN");
         assertEq(token.decimals(), IERC20Metadata(usdc).decimals());
         assertEq(token.totalSupply(), 1_000_000_000 * 10 ** token.decimals());
-        assertEq(token.balanceOf(treasuryWallet), 250_000_000 * 10 ** token.decimals());
-        assertEq(token.balanceOf(donationWallet), 0);
+        assertEq(token.balanceOf(protocol.treasuryWallet), 250_000_000 * 10 ** token.decimals());
+        assertEq(token.balanceOf(protocol.donationWallet), 0);
         assertEq(token.balanceOf(owner), 750_000_000 * 10 ** token.decimals());
         assertEq(token.lpManager(), factory.owner());
-        assertEq(token.treasuryAddress(), treasuryWallet);
-
-        DonationWallet dw = DonationWallet(payable(donationWallet));
+        assertEq(token.treasuryAddress(), protocol.treasuryWallet);
+        DonationWallet dw = DonationWallet(payable(protocol.donationWallet));
         assertEq(dw.owner(), address(30));
         assertEq(dw.factoryAddress(), address(factory));
         assertEq(address(dw.router()), router);
@@ -316,8 +356,8 @@ contract FactoryTest is Test {
         assertEq(address(dw.permit2()), permit2);
         assertEq(address(dw.positionManager()), positionManager);
 
-        TreasuryWallet tw = TreasuryWallet(payable(treasuryWallet));
-        assertEq(tw.donationAddress(), donationWallet);
+        TreasuryWallet tw = TreasuryWallet(payable(protocol.treasuryWallet));
+        assertEq(tw.donationAddress(), protocol.donationWallet);
         assertEq(tw.factoryAddress(), address(factory));
         assertEq(address(tw.router()), router);
         assertEq(address(tw.poolManager()), poolManager);
@@ -350,11 +390,11 @@ contract FactoryTest is Test {
     function testCreatePoolCannotCreateIfEtherPassedIsNotEqualToAmount0() public {
         vm.prank(owner);
         uint256 amount0 = 7 ether; // amount of Eth
-        (address fundraisingTokenAddress2,,,,,,) = factory.protocols(nonProfitOrg2);
-        uint256 amount1 = IERC20Metadata(fundraisingTokenAddress2).balanceOf(owner); // amount of fundraising token
+        IFactory.FundraisingProtocol memory protocol2 = factory.getProtocol(nonProfitOrg2);
+        uint256 amount1 = IERC20Metadata(protocol2.fundraisingToken).balanceOf(owner); // amount of fundraising token
 
         vm.startPrank(owner);
-        IERC20Metadata(fundraisingTokenAddress2).approve(address(factory), amount1);
+        IERC20Metadata(protocol2.fundraisingToken).approve(address(factory), amount1);
         vm.expectRevert(Factory.InvalidAmount0.selector);
         factory.createPool(nonProfitOrg2, amount0, amount1, 0x0);
         vm.stopPrank();
@@ -380,12 +420,12 @@ contract FactoryTest is Test {
         address evolveUSDC = address(new USDC(6));
         factory.createFundraisingVault("Evolve NP Fundraising Token", "EFTN", evolveUSDC, nonProfitOrg3);
 
-        (address _fundraisingTokenAddress,,,,,,) = factory.protocols(nonProfitOrg3);
+        IFactory.FundraisingProtocol memory protocol3 = factory.getProtocol(nonProfitOrg3);
 
         vm.stopPrank();
 
         uint256 amount0 = 100_000_000_000; // amount of usdc
-        uint256 amount1 = IERC20Metadata(_fundraisingTokenAddress).balanceOf(owner); // amount of fundraising token
+        uint256 amount1 = IERC20Metadata(protocol3.fundraisingToken).balanceOf(owner); // amount of fundraising token
 
         vm.startPrank(USDC_WHALE);
         USDC(evolveUSDC).mint(USDC_WHALE, amount0);
@@ -396,16 +436,13 @@ contract FactoryTest is Test {
 
         vm.startPrank(owner);
         IERC20Metadata(evolveUSDC).approve(address(factory), amount0);
-        IERC20Metadata(_fundraisingTokenAddress).approve(address(factory), amount1);
+        IERC20Metadata(protocol3.fundraisingToken).approve(address(factory), amount1);
         vm.expectEmit(true, true, true, false);
-        emit Factory.LiquidityPoolCreated(evolveUSDC, _fundraisingTokenAddress, nonProfitOrg);
-        bytes32 salt = factory.findSalt(nonProfitOrg3);
+        emit Factory.LiquidityPoolCreated(evolveUSDC, protocol3.fundraisingToken, nonProfitOrg);
+        bytes32 salt = hookDeployer.findSalt(nonProfitOrg3);
         factory.createPool(nonProfitOrg3, amount0, amount1, salt);
-        assertApproxEqAbs(IERC20Metadata(_fundraisingTokenAddress).balanceOf(poolManager), amount1, tolerance);
+        assertApproxEqAbs(IERC20Metadata(protocol3.fundraisingToken).balanceOf(poolManager), amount1, tolerance);
         assertEq(IERC20Metadata(usdc).balanceOf(address(factory)), 0);
-        PoolKey memory key = factory.getPoolKey(nonProfitOrg3);
-        //   assertEq(Currency.unwrap(key.currency0), _fundraisingTokenAddress);
-        //   assertEq(Currency.unwrap(key.currency1), evolveUSDC);
         vm.stopPrank();
     }
 
@@ -424,7 +461,7 @@ contract FactoryTest is Test {
         IERC20Metadata(fundraisingTokenAddress).approve(address(factory), amount1);
         vm.expectEmit(true, true, true, false);
         emit Factory.LiquidityPoolCreated(usdc, fundraisingTokenAddress, nonProfitOrg);
-        bytes32 salt = factory.findSalt(nonProfitOrg);
+        bytes32 salt = hookDeployer.findSalt(nonProfitOrg);
         factory.createPool(nonProfitOrg, amount0, amount1, salt);
         assertApproxEqAbs(IERC20Metadata(fundraisingTokenAddress).balanceOf(poolManager), amount1, 100);
 
@@ -478,7 +515,8 @@ contract FactoryTest is Test {
     function testCreatePoolOwnerCanCreatePoolUsingEtherAsUnderlyingToken() public {
         vm.prank(owner);
         uint256 amount0 = 7 ether; // amount of Eth
-        (address fundraisingTokenAddress2,,,,,,) = factory.protocols(nonProfitOrg2);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(nonProfitOrg2);
+        address fundraisingTokenAddress2 = protocol.fundraisingToken;
         uint256 amount1 = IERC20Metadata(fundraisingTokenAddress2).balanceOf(owner); // amount of fundraising token
 
         vm.deal(owner, amount0);
@@ -487,7 +525,7 @@ contract FactoryTest is Test {
 
         vm.startPrank(owner);
         IERC20Metadata(fundraisingTokenAddress2).approve(address(factory), amount1);
-        bytes32 salt = factory.findSalt(nonProfitOrg2);
+        bytes32 salt = hookDeployer.findSalt(nonProfitOrg2);
         vm.expectEmit(true, true, true, false);
         emit Factory.LiquidityPoolCreated(address(0), fundraisingTokenAddress, nonProfitOrg);
         factory.createPool{value: amount0}(nonProfitOrg2, amount0, amount1, salt);
@@ -643,16 +681,15 @@ contract FactoryTest is Test {
 
     function testFindSaltRevertsIfProtocolNotCreated() public {
         vm.expectRevert(Factory.ProtocolNotAvailable.selector);
-        factory.findSalt(address(21));
+        hookDeployer.findSalt(address(21));
     }
 
     function testFindSaltRevertsIfNonProfitOrgOwnerIsZeroAddress() public {
         vm.expectRevert(Factory.ZeroAddress.selector);
-        factory.findSalt(address(0));
+        hookDeployer.findSalt(address(0));
     }
 
     function testCreatePoolWithCurrency0UnderlyingTokenAndCurrency1FundraisingToken() public {
-        address _usdc = 0x0f798Adf37595CE12f19Eab49282E61C2a4A139A;
         uint256 salt = 85878;
         vm.startPrank(owner);
         address usdc_ = address(new USDC{salt: bytes32(salt)}(6));
@@ -660,10 +697,9 @@ contract FactoryTest is Test {
         address mekedoniaOwner = address(40);
         factory.createFundraisingVault("Mekedonia Fundraising Token", "MFTN", usdc_, mekedoniaOwner);
 
-        (address ftn,,,,,,) = factory.protocols(mekedoniaOwner);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(mekedoniaOwner);
+        address ftn = protocol.fundraisingToken;
 
-        bool isUnderlyingLessThanFundraising = usdc_ < ftn;
-        //assertEq(isUnderlyingLessThanFundraising, true);
         uint256 amount0 = 300_000e6;
         uint256 amount1 = IERC20Metadata(ftn).balanceOf(owner);
         USDC(usdc_).mint(owner, amount0);
@@ -672,7 +708,7 @@ contract FactoryTest is Test {
 
         IERC20Metadata(ftn).approve(address(factory), amount1);
 
-        bytes32 _salt = factory.findSalt(mekedoniaOwner);
+        bytes32 _salt = hookDeployer.findSalt(mekedoniaOwner);
 
         factory.createPool(mekedoniaOwner, amount0, amount1, _salt);
 
@@ -701,10 +737,13 @@ contract FactoryTest is Test {
         address newNonProfitOrgAddress = address(20);
         vm.expectEmit(true, true, false, false);
         // protocol data before changing
-        (address ftn,,,,,,) = factory.protocols(nonProfitOrg);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(nonProfitOrg);
+        address ftn = protocol.fundraisingToken;
         emit Factory.ProtocolOwnerChanged(nonProfitOrg, newNonProfitOrgAddress);
         factory.changeNonProfitOrgOwner(newNonProfitOrgAddress);
-        (address ftn1,,, address donationWallet,,,) = factory.protocols(newNonProfitOrgAddress);
+        IFactory.FundraisingProtocol memory protocol1 = factory.getProtocol(newNonProfitOrgAddress);
+        address ftn1 = protocol1.fundraisingToken;
+        address donationWallet = protocol1.donationWallet;
         assertEq(ftn, ftn1);
         assertEq(DonationWallet(payable(donationWallet)).owner(), newNonProfitOrgAddress);
     }

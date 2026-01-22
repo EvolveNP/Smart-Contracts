@@ -22,6 +22,7 @@ import {BuyFundraisingTokens} from "./BuyTokens.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {USDC} from "../src/mock/USDC.sol";
 import {FundraisingTokenHook} from "../src/Hook.sol";
+import {IFactory} from "../src/interfaces/IFactory.sol";
 
 contract TreasuryWalletTest is Test, BuyFundraisingTokens {
     TreasuryWallet public treasuryWallet;
@@ -369,7 +370,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
         Factory factory = factoryTest.factory();
         address nonProfitOrg = address(0x7);
-        (address fundraisingTokenAddress,, address treasury,,,,) = factory.protocols(nonProfitOrg);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(nonProfitOrg);
         address registry = factoryTest.registryAddress();
 
         // buy tokens to make lp under health
@@ -385,11 +386,12 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         uint256 slippage = 5e16;
         vm.roll(block.number + 100);
         vm.warp(block.timestamp + 3 hours);
-        uint256 minAmountOut = _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, fundraisingTokenAddress);
-        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, fundraisingTokenAddress);
+        uint256 minAmountOut =
+            _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, protocol.fundraisingToken);
+        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, protocol.fundraisingToken);
         vm.stopPrank();
         vm.startPrank(address(factory));
-        TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        TreasuryWallet treasuryInstance = TreasuryWallet(payable(protocol.treasuryWallet));
         treasuryInstance.setRegistry(registry);
         vm.stopPrank();
         vm.startPrank(registry);
@@ -405,7 +407,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         factoryTest.testCreatePoolOwnerCanCreatePoolUsingEtherAsUnderlyingToken();
         Factory factory = factoryTest.factory();
         address nonProfitOrg = factoryTest.nonProfitOrg2();
-        (address fundraisingTokenAddress,, address treasury,,,,) = factory.protocols(nonProfitOrg);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(nonProfitOrg);
         address registry = factoryTest.registryAddress();
         address _router = factoryTest.router();
         // buy tokens to make lp under health
@@ -423,11 +425,12 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         uint256 slippage = 5e16;
         vm.roll(block.number + 100);
         vm.warp(block.timestamp + 3 hours);
-        uint256 minAmountOut = _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, fundraisingTokenAddress);
-        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, fundraisingTokenAddress);
+        uint256 minAmountOut =
+            _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, protocol.fundraisingToken);
+        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, protocol.fundraisingToken);
         vm.stopPrank();
         vm.startPrank(address(factory));
-        TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        TreasuryWallet treasuryInstance = TreasuryWallet(payable(protocol.treasuryWallet));
         treasuryInstance.setRegistry(registry);
         vm.stopPrank();
         vm.startPrank(registry);
@@ -443,8 +446,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         factoryTest.testCreatePoolWithCurrency0UnderlyingTokenAndCurrency1FundraisingToken();
         Factory factory = factoryTest.factory();
         address nonProfitOrg = address(40);
-        (address fundraisingTokenAddress, address underlyingAddress, address treasury,,,,) =
-            factory.protocols(nonProfitOrg);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(nonProfitOrg);
         address registry = factoryTest.registryAddress();
 
         // buy tokens to make lp under health
@@ -453,7 +455,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         vm.startPrank(USDC_WHALE);
 
         uint128 amountToSwap = 650_000_000e6; // to make the LP un healthy
-        USDC(underlyingAddress).mint(USDC_WHALE, amountToSwap);
+        USDC(protocol.underlyingAddress).mint(USDC_WHALE, amountToSwap);
         PoolKey memory key = factory.getPoolKey(nonProfitOrg);
         IPermit2 permit2 = IPermit2(factory.permit2());
         UniversalRouter router = UniversalRouter(payable(factory.router()));
@@ -461,11 +463,12 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         uint256 slippage = 5e16;
         vm.roll(block.number + 100);
         vm.warp(block.timestamp + 3 hours);
-        uint256 minAmountOut = _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, fundraisingTokenAddress);
-        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, fundraisingTokenAddress);
+        uint256 minAmountOut =
+            _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, protocol.fundraisingToken);
+        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, protocol.fundraisingToken);
         vm.stopPrank();
         vm.startPrank(address(factory));
-        TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        TreasuryWallet treasuryInstance = TreasuryWallet(payable(protocol.treasuryWallet));
         treasuryInstance.setRegistry(registry);
         vm.stopPrank();
         vm.startPrank(registry);
@@ -479,7 +482,7 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         factoryTest.testCreatePoolOwnerCanCreatePoolUsingEtherAsUnderlyingToken();
         Factory factory = factoryTest.factory();
         address nonProfitOrg = address(0x27);
-        (address _fundRaisingToken,, address treasury,,,,) = factory.protocols(nonProfitOrg);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(nonProfitOrg);
         address registry = factoryTest.registryAddress();
         // buy tokens to make lp under health
         address USDC_WHALE = factoryTest.USDC_WHALE();
@@ -496,13 +499,14 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         uint256 slippage = 5e16;
         vm.roll(block.number + 100);
         vm.warp(block.timestamp + 3 hours);
-        uint256 minAmountOut = _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, _fundRaisingToken);
+        uint256 minAmountOut =
+            _getMinAmountOut(key, amountToSwap, bytes(""), qouter, slippage, protocol.fundraisingToken);
 
-        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, _fundRaisingToken);
+        buyFundraisingToken(key, amountToSwap, uint128(minAmountOut), permit2, router, protocol.fundraisingToken);
 
         vm.startPrank(address(factory));
         vm.deal(registry, 10 ether);
-        TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        TreasuryWallet treasuryInstance = TreasuryWallet(payable(protocol.treasuryWallet));
         treasuryInstance.setRegistry(registry);
         vm.stopPrank();
         vm.startPrank(registry);
@@ -510,8 +514,9 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         treasuryInstance.performUpkeep(performData);
 
         assertEq(
-            IERC20Metadata(_fundRaisingToken).balanceOf(factory.poolManager())
-                >= (IERC20Metadata(_fundRaisingToken).totalSupply() * factoryTest.minLPHealthThreshhold()) / 1e18,
+            IERC20Metadata(protocol.fundraisingToken).balanceOf(factory.poolManager())
+                >= (IERC20Metadata(protocol.fundraisingToken).totalSupply() * factoryTest.minLPHealthThreshhold())
+                    / 1e18,
             true
         );
     }
@@ -522,10 +527,10 @@ contract TreasuryWalletTest is Test, BuyFundraisingTokens {
         factoryTest.testCreatePoolOwnerCanCreateAPoolOnUniswap();
         Factory factory = factoryTest.factory();
         address nonProfitOrg = address(0x7);
-        (,, address treasury,,,,) = factory.protocols(nonProfitOrg);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(nonProfitOrg);
         address registry = factoryTest.registryAddress();
         vm.startPrank(address(factory));
-        TreasuryWallet treasuryInstance = TreasuryWallet(payable(treasury));
+        TreasuryWallet treasuryInstance = TreasuryWallet(payable(protocol.treasuryWallet));
         treasuryInstance.setRegistry(registry);
         vm.stopPrank();
         vm.startPrank(registry);

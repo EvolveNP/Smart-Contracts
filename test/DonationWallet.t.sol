@@ -13,6 +13,8 @@ import {FactoryTest} from "./Factory.t.sol";
 import {TreasuryWallet} from "../src/TreasuryWallet.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {USDC} from "../src/mock/USDC.sol";
+import {IFactory} from "../src/interfaces/IFactory.sol";
+import {HookDeployer} from "../src/HookDeployer.sol";
 
 contract DonationWalletTest is Test {
     DonationWallet public donationWallet;
@@ -29,12 +31,21 @@ contract DonationWalletTest is Test {
     Factory factory;
     address registryAddress = address(0x21);
 
+    HookDeployer hookDeployer;
+
     function setUp() public {
         donationWalletImplementation = address(new DonationWallet());
         donationWalletBeacon = address(new UpgradeableBeacon(donationWalletImplementation, msg.sender));
         donationWallet = DonationWallet(payable(address(new BeaconProxy(donationWalletBeacon, ""))));
         address factoryImplementation = address(new Factory());
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, address(30), bytes(""))));
+
+        address hookDeployerImplementation = address(new HookDeployer());
+        hookDeployer =
+            HookDeployer(address(new TransparentUpgradeableProxy(hookDeployerImplementation, msg.sender, bytes(""))));
+
+        hookDeployer.initialize(address(factory));
+
         factory.initialize(
             address(20),
             poolManager,
@@ -44,7 +55,8 @@ contract DonationWalletTest is Test {
             quoter,
             address(21),
             address(22),
-            donationWalletBeacon
+            donationWalletBeacon,
+            address(hookDeployer)
         );
         fundraisingToken = address(new FundRaisingToken("FundRaisingToken", "FRT", 6, address(10), address(10), 2e24));
         donationWallet.initialize(
@@ -188,13 +200,11 @@ contract DonationWalletTest is Test {
 
         address nonProfigOrg = factoryTest.nonProfitOrg();
 
-        (
-            address fundraisingTokenAddress,
-            address underlyingAddress,
-            address treasuryAddress,
-            address _donationWallet,,,
-        ) = _factory.protocols(nonProfigOrg);
-
+        IFactory.FundraisingProtocol memory protocol = _factory.getProtocol(nonProfigOrg);
+        address fundraisingTokenAddress = protocol.fundraisingToken;
+        address underlyingAddress = protocol.underlyingAddress;
+        address treasuryAddress = protocol.treasuryWallet;
+        address _donationWallet = protocol.donationWallet;
         TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));
         bytes memory performData = abi.encode(true, false);
         address _registryAddress = treasuryWallet.registryAddress();
@@ -222,12 +232,12 @@ contract DonationWalletTest is Test {
 
         address nonProfigOrg = factoryTest.nonProfitOrg2();
 
-        (
-            address fundraisingTokenAddress,
-            address underlyingAddress,
-            address treasuryAddress,
-            address _donationWallet,,,
-        ) = _factory.protocols(nonProfigOrg);
+        IFactory.FundraisingProtocol memory protocol = _factory.getProtocol(nonProfigOrg);
+        address underlyingAddress = protocol.underlyingAddress;
+        address treasuryAddress = protocol.treasuryWallet;
+        address _donationWallet = protocol.donationWallet;
+        address fundraisingTokenAddress = protocol.fundraisingToken;
+
         assertEq(underlyingAddress, address(0));
         TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));
         address _registryAddress = treasuryWallet.registryAddress();
@@ -256,14 +266,13 @@ contract DonationWalletTest is Test {
         address owner = _factory.owner();
         vm.startPrank(owner);
         _factory.createFundraisingVault("Fundraising TOken", "FTN", address(0), ownerThatNotReceiveETH);
-
+        
         uint256 amount0 = 7 ether; // amount of Eth
-        (
-            address fundraisingTokenAddress,
-            address underlyingAddress,
-            address treasuryAddress,
-            address _donationWallet,,,
-        ) = _factory.protocols(ownerThatNotReceiveETH);
+        IFactory.FundraisingProtocol memory protocol = _factory.getProtocol(ownerThatNotReceiveETH);
+        address fundraisingTokenAddress = protocol.fundraisingToken;
+        address underlyingAddress = protocol.underlyingAddress;
+        address treasuryAddress = protocol.treasuryWallet;
+        address _donationWallet = protocol.donationWallet;
 
         uint256 amount1 = IERC20(fundraisingTokenAddress).balanceOf(owner); // amount of fundraising token
 
@@ -272,9 +281,9 @@ contract DonationWalletTest is Test {
         uint256 tolerance = 2_200; // add some tolerance due to precision
 
         vm.startPrank(owner);
-        console.log(fundraisingTokenAddress, amount1, "amount");
+
         IERC20(fundraisingTokenAddress).approve(address(_factory), amount1);
-        bytes32 salt = _factory.findSalt(ownerThatNotReceiveETH);
+        bytes32 salt = hookDeployer.findSalt(ownerThatNotReceiveETH);
 
         vm.expectEmit(true, true, true, false);
         emit Factory.LiquidityPoolCreated(address(0), fundraisingTokenAddress, ownerThatNotReceiveETH);
@@ -314,12 +323,11 @@ contract DonationWalletTest is Test {
 
         address nonProfigOrg = address(40);
 
-        (
-            address fundraisingTokenAddress,
-            address underlyingAddress,
-            address treasuryAddress,
-            address _donationWallet,,,
-        ) = _factory.protocols(nonProfigOrg);
+        IFactory.FundraisingProtocol memory protocol = _factory.getProtocol(nonProfigOrg);
+        address fundraisingTokenAddress = protocol.fundraisingToken;
+        address underlyingAddress = protocol.underlyingAddress;
+        address treasuryAddress = protocol.treasuryWallet;
+        address _donationWallet = protocol.donationWallet;
 
         TreasuryWallet treasuryWallet = TreasuryWallet(payable(treasuryAddress));
         bytes memory performData = abi.encode(true, false);
