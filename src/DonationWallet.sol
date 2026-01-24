@@ -64,7 +64,7 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      */
     event Paused(bool pause);
 
-    event SwapSkipped(int24 priceDevation);
+    event SwapSkipped();
 
     modifier onlyRegistry() {
         if (msg.sender != registryAddress) revert NotRegistry();
@@ -128,10 +128,9 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
      *      Restricted to be called only by the authorized registry contract.
      */
     function performUpkeep(bytes calldata) external onlyRegistry {
-        int24 priceDeviation = checkPriceDevation();
-        if (priceDeviation > maxTickDeviation) {
+        if (!shouldAllowSell()) {
             lastUpkeepTimestamp = block.timestamp + oracleObservationInterval;
-            emit SwapSkipped(priceDeviation);
+            emit SwapSkipped();
             return;
         }
         swapFundraisingToken();
@@ -193,26 +192,39 @@ contract DonationWallet is Swap, AutomationCompatibleInterface {
         emit FundsTransferredToNonProfit(owner, amountOut);
     }
 
-    function checkPriceDevation() public view returns (int24) {
+    function shouldAllowSell() public view returns (bool) {
         IHook hook = IHook(hookAddress);
         PoolKey memory key = IFactory(factoryAddress).getPoolKey(owner);
+
+        uint32 interval = oracleObservationInterval;
+
         uint32[] memory secondsAgos = new uint32[](2);
-        secondsAgos[0] = oracleObservationInterval;
+        secondsAgos[0] = interval;
         secondsAgos[1] = 0;
+
         (int48[] memory tickCumulatives,) = hook.observe(key, secondsAgos);
 
-        // Calculate the average tick over the last 30 minutes
-        int56 tickCumulativeDelta = tickCumulatives[1] - tickCumulatives[0];
-        int24 averageTick30Min = int24(tickCumulativeDelta / int56(uint56(1800)));
+        int56 tickDelta = int56(tickCumulatives[1]) - int56(tickCumulatives[0]);
 
-        // Get current instantaneous tick from the pool or hook
-        int24 currentTick = IHook(hookAddress).getCurrentTick(key);
+        int24 avgTick = int24(tickDelta / int56(uint56(interval)));
 
-        // Calculate absolute tick deviation
-        int24 tickDeviation =
-            currentTick > averageTick30Min ? currentTick - averageTick30Min : averageTick30Min - currentTick;
+        int24 currentTick = hook.getCurrentTick(key);
 
-        return tickDeviation;
-        // down side
+        bool fundraisingIsToken0 = Currency.unwrap(key.currency0) == address(fundraisingToken);
+
+        if (fundraisingIsToken0) {
+            // FundraisingToken DOWN too much → block
+            if (avgTick - currentTick > maxTickDeviation) {
+                return false;
+            }
+        } else {
+            // FundraisingToken DOWN too much → block
+            if (currentTick - avgTick > maxTickDeviation) {
+                return false;
+            }
+        }
+
+        // UP, SAME, or small dip → allowed
+        return true;
     }
 }

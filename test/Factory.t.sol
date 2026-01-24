@@ -54,7 +54,7 @@ contract FactoryTest is Test {
     address public nonProfitOrg2 = address(0x27);
     address treasuryWalletBeacon;
     address donationWalletBeacon;
-    HookDeployer hookDeployer;
+    HookDeployer public hookDeployer;
 
     function setUp() public {
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
@@ -69,7 +69,6 @@ contract FactoryTest is Test {
 
         address factoryImplementation = address(new Factory());
         quoter = address(new V4Quoter(IPoolManager(poolManager)));
-        console.log(quoter, "quoter address");
         factory = Factory(address(new TransparentUpgradeableProxy(factoryImplementation, msg.sender, bytes(""))));
 
         address hookDeployerImplementation = address(new HookDeployer());
