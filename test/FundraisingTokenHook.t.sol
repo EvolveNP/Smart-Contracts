@@ -25,6 +25,7 @@ import {MockHook} from "../src/mock/MockHook.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {BalanceDelta, toBalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {IFundraisingToken} from "../src/interfaces/IFundraisingToken.sol";
+import {IFactory} from "../src/interfaces/IFactory.sol";
 
 contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
     uint256 mainnetFork;
@@ -63,8 +64,8 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
-        (address ftn,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
-        bool zeroForOne = ftn != Currency.unwrap(key.currency0);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(factoryTest.nonProfitOrg());
+        bool zeroForOne = protocol.fundraisingToken != Currency.unwrap(key.currency0);
         // Encode V4Router actions
         bytes memory actions =
             abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
@@ -116,8 +117,8 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
 
-        (address ftn,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
-        bool zeroForOne = ftn != Currency.unwrap(key.currency0);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(factoryTest.nonProfitOrg());
+        bool zeroForOne = protocol.fundraisingToken != Currency.unwrap(key.currency0);
 
         vm.roll(block.number + 10);
 
@@ -169,12 +170,12 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
 
-        (address ftn,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
-        bool zeroForOne = ftn != Currency.unwrap(key.currency0);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(factoryTest.nonProfitOrg());
+        bool zeroForOne = protocol.fundraisingToken != Currency.unwrap(key.currency0);
 
         vm.roll(block.number + 10);
-        (address fundraisingTokenAddress,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
-        buyFundraisingToken(key, amountIn, 1, permit2, router, fundraisingTokenAddress);
+        IFactory.FundraisingProtocol memory protocol1 = factory.getProtocol(factoryTest.nonProfitOrg());
+        buyFundraisingToken(key, amountIn, 1, permit2, router, protocol1.fundraisingToken);
 
         // Encode V4Router actions
         bytes memory actions =
@@ -224,12 +225,11 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
 
-        (address ftn,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
-        bool zeroForOne = ftn != Currency.unwrap(key.currency0);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(factoryTest.nonProfitOrg());
+        bool zeroForOne = protocol.fundraisingToken != Currency.unwrap(key.currency0);
 
         vm.roll(block.number + 10);
-        (address fundraisingTokenAddress,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
-        buyFundraisingToken(key, amountIn, 1, permit2, router, fundraisingTokenAddress);
+        buyFundraisingToken(key, amountIn, 1, permit2, router, protocol.fundraisingToken);
 
         // Encode V4Router actions
         bytes memory actions =
@@ -268,29 +268,28 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         vm.startPrank(USDC_WHALE);
         key = factory.getPoolKey(factoryTest.nonProfitOrg());
         uint128 amountIn = 100e6;
-        (address fundraisingTokenAddress,,,,,,) = factory.protocols(factoryTest.nonProfitOrg());
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(factoryTest.nonProfitOrg());
 
         // first buy
         vm.roll(block.number + 10);
-        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
-
-        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, protocol.fundraisingToken);
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, protocol.fundraisingToken);
 
         //second buy after cool down period passed
         vm.warp(block.timestamp + 2 minutes);
 
-        uint256 _minAmountOut2 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut2 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, protocol.fundraisingToken);
 
-        buyFundraisingToken(key, amountIn, uint128(_minAmountOut2), permit2, router, fundraisingTokenAddress);
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut2), permit2, router, protocol.fundraisingToken);
 
         // third buy after holding time passed
         vm.warp(block.timestamp + 2 hours);
 
         uint128 amountIn3 = 5000e6;
 
-        uint256 _minAmountOut = _getMinAmountOut(key, amountIn3, bytes(""), quoter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut = _getMinAmountOut(key, amountIn3, bytes(""), quoter, slippage, protocol.fundraisingToken);
 
-        buyFundraisingToken(key, amountIn3, uint128(_minAmountOut), permit2, router, fundraisingTokenAddress);
+        buyFundraisingToken(key, amountIn3, uint128(_minAmountOut), permit2, router, protocol.fundraisingToken);
     }
 
     function testCannotIncurTaxIfTreasuryWalletIsPaused() public {
@@ -298,23 +297,21 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         key = factory.getPoolKey(factoryTest.nonProfitOrg());
         uint128 amountIn = 100e6;
-        (address fundraisingTokenAddress,, address treasuryWallet,,, address owner,) =
-            factory.protocols(factoryTest.nonProfitOrg());
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(factoryTest.nonProfitOrg());
         vm.stopPrank();
-        vm.startPrank(owner);
-        uint256 treasuryBalanceBeforeBalance = IERC20(fundraisingTokenAddress).balanceOf(treasuryWallet);
-        factory.setTreasuryPaused(owner, true);
+        vm.startPrank(protocol.owner);
+        uint256 treasuryBalanceBeforeBalance = IERC20(protocol.fundraisingToken).balanceOf(protocol.treasuryWallet);
+        factory.setTreasuryPaused(protocol.owner, true);
         vm.stopPrank();
 
         vm.startPrank(USDC_WHALE);
         // first buy
         vm.roll(block.number + 10);
-        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, protocol.fundraisingToken);
 
-        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, protocol.fundraisingToken);
 
-        uint256 treasuryBalanceAfterBalance = IERC20(fundraisingTokenAddress).balanceOf(treasuryWallet);
-
+        uint256 treasuryBalanceAfterBalance = IERC20(protocol.fundraisingToken).balanceOf(protocol.treasuryWallet);
         assertEq(treasuryBalanceBeforeBalance, treasuryBalanceAfterBalance);
     }
 
@@ -323,40 +320,40 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         vm.startPrank(USDC_WHALE);
         key = factory.getPoolKey(factoryTest.nonProfitOrg());
         uint128 amountIn = 10000000e6;
-        (address fundraisingTokenAddress,, address treasuryWallet,,,,) = factory.protocols(factoryTest.nonProfitOrg());
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(factoryTest.nonProfitOrg());
 
         // first buy
         vm.roll(block.number + 10);
         vm.warp(block.timestamp + 2 hours);
-        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, protocol.fundraisingToken);
 
-        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, protocol.fundraisingToken);
 
         // check the remaining amount to make treasury wallet to reach max threshold and send from user account
         // max threshold 30%
 
-        uint256 remainingAmount = 3e14 - IERC20(fundraisingTokenAddress).balanceOf(treasuryWallet);
+        uint256 remainingAmount = 3e14 - IERC20(protocol.fundraisingToken).balanceOf(protocol.treasuryWallet);
 
-        IERC20(fundraisingTokenAddress).transfer(treasuryWallet, remainingAmount);
+        IERC20(protocol.fundraisingToken).transfer(protocol.treasuryWallet, remainingAmount);
 
-        assertEq(IERC20(fundraisingTokenAddress).balanceOf(treasuryWallet), 3e14);
+        assertEq(IERC20(protocol.fundraisingToken).balanceOf(protocol.treasuryWallet), 3e14);
         //second buy after cool down period passed
         vm.warp(block.timestamp + 2 minutes);
 
-        uint256 _minAmountOut2 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut2 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, protocol.fundraisingToken);
 
-        buyFundraisingToken(key, amountIn, uint128(_minAmountOut2), permit2, router, fundraisingTokenAddress);
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut2), permit2, router, protocol.fundraisingToken);
 
         // third buy after holding time passed
         vm.warp(block.timestamp + 2 hours);
 
         uint128 amountIn3 = 5000000e6;
 
-        uint256 _minAmountOut = _getMinAmountOut(key, amountIn3, bytes(""), quoter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut = _getMinAmountOut(key, amountIn3, bytes(""), quoter, slippage, protocol.fundraisingToken);
 
-        buyFundraisingToken(key, amountIn3, uint128(_minAmountOut), permit2, router, fundraisingTokenAddress);
+        buyFundraisingToken(key, amountIn3, uint128(_minAmountOut), permit2, router, protocol.fundraisingToken);
 
-        assertEq(IERC20(fundraisingTokenAddress).balanceOf(treasuryWallet), 3e14);
+        assertEq(IERC20(protocol.fundraisingToken).balanceOf(protocol.treasuryWallet), 3e14);
     }
 
     function testIncurTaxOnSellingFundraisingToken() public {
@@ -364,21 +361,19 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         vm.startPrank(USDC_WHALE);
         key = factory.getPoolKey(factoryTest.nonProfitOrg());
         uint128 amountIn = 10000000e6;
-        (address fundraisingTokenAddress, address underlingCurrency,,,,,) =
-            factory.protocols(factoryTest.nonProfitOrg());
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(factoryTest.nonProfitOrg());
 
         // first buy
         vm.roll(block.number + 10);
         vm.warp(block.timestamp + 2 hours);
-        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, fundraisingTokenAddress);
+        uint256 _minAmountOut1 = _getMinAmountOut(key, amountIn, bytes(""), quoter, slippage, protocol.fundraisingToken);
 
-        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, fundraisingTokenAddress);
+        buyFundraisingToken(key, amountIn, uint128(_minAmountOut1), permit2, router, protocol.fundraisingToken);
 
-        uint256 whaleUSDCBalanceBeforeBuyingUSDC = IERC20(underlingCurrency).balanceOf(USDC_WHALE);
+        uint256 whaleUSDCBalanceBeforeBuyingUSDC = IERC20(protocol.underlyingAddress).balanceOf(USDC_WHALE);
+        sellFundraisingToken(key, amountIn, uint128(1), permit2, router, protocol.fundraisingToken);
 
-        sellFundraisingToken(key, amountIn, uint128(1), permit2, router, fundraisingTokenAddress);
-
-        uint256 whaleUSDCBalanceAfterBuyingUSDC = IERC20(underlingCurrency).balanceOf(USDC_WHALE);
+        uint256 whaleUSDCBalanceAfterBuyingUSDC = IERC20(protocol.underlyingAddress).balanceOf(USDC_WHALE);
 
         assertGt(whaleUSDCBalanceAfterBuyingUSDC, whaleUSDCBalanceBeforeBuyingUSDC);
     }
@@ -390,8 +385,8 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         key = factory.getPoolKey(factoryTest.nonProfitOrg());
 
-        (address ftn,, address treasuryWallet, address donationWallet,,,) =
-            factory.protocols(factoryTest.nonProfitOrg());
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(factoryTest.nonProfitOrg());
+        factory.getProtocol(factoryTest.nonProfitOrg());
 
         // Max positive int128 value (2^127 - 1)
         uint256 threshold = (uint256(1) << 130) - 1;
@@ -409,9 +404,9 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         // Deploy the hook via HookMiner
         bytes memory ctorArgs = abi.encode(
             address(poolManager),
-            ftn,
-            treasuryWallet,
-            donationWallet,
+            protocol.fundraisingToken,
+            protocol.treasuryWallet,
+            protocol.donationWallet,
             address(router),
             address(quoter),
             factory.stateView()
@@ -423,9 +418,9 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         MockHook hook = new MockHook{salt: salt}(
             address(poolManager),
-            ftn,
-            treasuryWallet,
-            donationWallet,
+            protocol.fundraisingToken,
+            protocol.treasuryWallet,
+            protocol.donationWallet,
             address(router),
             address(quoter),
             address(factory.stateView())
@@ -454,8 +449,7 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         key = factory.getPoolKey(factoryTest.nonProfitOrg());
 
-        (address ftn,, address treasuryWallet, address donationWallet,,,) =
-            factory.protocols(factoryTest.nonProfitOrg());
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(factoryTest.nonProfitOrg());
 
         // Hook flags
         uint160 flags = uint160(
@@ -467,9 +461,9 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
         // Deploy the hook via HookMiner
         bytes memory ctorArgs = abi.encode(
             address(poolManager),
-            ftn,
-            treasuryWallet,
-            donationWallet,
+            protocol.fundraisingToken,
+            protocol.treasuryWallet,
+            protocol.donationWallet,
             address(router),
             address(quoter),
             factory.stateView()
@@ -481,20 +475,21 @@ contract FundraisingTokenHookTest is Test, BuyFundraisingTokens {
 
         MockHook hook = new MockHook{salt: salt}(
             address(poolManager),
-            ftn,
-            treasuryWallet,
-            donationWallet,
+            protocol.fundraisingToken,
+            protocol.treasuryWallet,
+            protocol.donationWallet,
             address(router),
             address(quoter),
             address(factory.stateView())
         );
 
-        uint256 totalSupply = IERC20(ftn).totalSupply();
+        uint256 totalSupply = IERC20(protocol.fundraisingToken).totalSupply();
         vm.startPrank(factory.owner());
-        IERC20(ftn).transfer(treasuryWallet, IERC20(ftn).balanceOf(factory.owner()));
-        vm.startPrank(treasuryWallet);
+        IERC20(protocol.fundraisingToken)
+            .transfer(protocol.treasuryWallet, IERC20(protocol.fundraisingToken).balanceOf(factory.owner()));
+        vm.startPrank(protocol.treasuryWallet);
 
-        IFundraisingToken(ftn).burn(totalSupply);
+        IFundraisingToken(protocol.fundraisingToken).burn(totalSupply);
 
         assertEq(hook._getTreasuryBalanceInPerecent(), 0);
         vm.stopPrank();

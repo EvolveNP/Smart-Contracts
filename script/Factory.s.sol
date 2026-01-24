@@ -43,7 +43,8 @@ contract FactoryScript is Script, Config {
             admin,
             treasuryWalletBeacon,
             donationWalletBeacon,
-            stateView
+            stateView,
+            address(20) // TODO: set hook deployer address
         );
 
         config.set("factoryImplementation", factoryImplementation);

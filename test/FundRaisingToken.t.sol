@@ -12,6 +12,7 @@ import {DonationWallet} from "../src/DonationWallet.sol";
 import {Factory} from "../src/Factory.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {USDC} from "../src/mock/USDC.sol";
+import {IFactory} from "../src/interfaces/IFactory.sol";
 
 contract FundRaisingTokenTest is Test {
     FundRaisingToken public fundRaisingToken;
@@ -57,13 +58,17 @@ contract FundRaisingTokenTest is Test {
             address(0x20),
             treasuryWalletBeacon,
             donationWalletBeacon,
-            stateView
+            stateView,
+            address(0x30)
         );
         factoryAddress = address(factory);
         factory.createFundraisingVault("FundraisingToken", "FTN", usdc, nonProfitOrg);
 
-        (fundraisingTokenAddress,, treasuryAddress, donationAddress,,,) = factory.protocols(nonProfitOrg);
-        fundRaisingToken = FundRaisingToken(fundraisingTokenAddress);
+        IFactory.FundraisingProtocol memory protocol = factory.getProtocol(nonProfitOrg);
+        fundRaisingToken = FundRaisingToken(protocol.fundraisingToken);
+        treasuryAddress = protocol.treasuryWallet;
+        donationAddress = protocol.donationWallet;
+        fundraisingTokenAddress = protocol.fundraisingToken;
         vm.stopPrank();
     }
 
