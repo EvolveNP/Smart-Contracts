@@ -266,7 +266,7 @@ contract DonationWalletTest is Test {
         address owner = _factory.owner();
         vm.startPrank(owner);
         _factory.createFundraisingVault("Fundraising TOken", "FTN", address(0), ownerThatNotReceiveETH);
-        
+
         uint256 amount0 = 7 ether; // amount of Eth
         IFactory.FundraisingProtocol memory protocol = _factory.getProtocol(ownerThatNotReceiveETH);
         address fundraisingTokenAddress = protocol.fundraisingToken;
@@ -283,7 +283,7 @@ contract DonationWalletTest is Test {
         vm.startPrank(owner);
 
         IERC20(fundraisingTokenAddress).approve(address(_factory), amount1);
-        bytes32 salt = hookDeployer.findSalt(ownerThatNotReceiveETH);
+        bytes32 salt = factoryTest.hookDeployer().findSalt(ownerThatNotReceiveETH);
 
         vm.expectEmit(true, true, true, false);
         emit Factory.LiquidityPoolCreated(address(0), fundraisingTokenAddress, ownerThatNotReceiveETH);
@@ -344,7 +344,7 @@ contract DonationWalletTest is Test {
         assertEq(IERC20(fundraisingTokenAddress).balanceOf(_donationWallet), 0);
         assertGt(IERC20(underlyingAddress).balanceOf(owner), 0);
         vm.warp(1 hours);
-        DonationWallet(payable(_donationWallet)).checkPriceDevation();
+        DonationWallet(payable(_donationWallet)).shouldAllowSell();
     }
 
     function testReceive() public {
